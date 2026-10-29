@@ -37,6 +37,7 @@ const ORDER: string[] = ['perustiedot', 'kylmaaine', 'piiri', 'yksikot', 'lauhdu
 function isCondenserSide(entry: MaintenanceDocumentEntry): boolean {
   const id = entry.tabId;
   return entry.kind === 'condenserUnit'
+    || entry.kind === 'condenserConfig'
     || id === 'lauhdutin'
     || id === 'lauhdutuspiiri'
     || id === 'nestelauhduttimet'
@@ -66,7 +67,7 @@ function groupTitle(id: string, entries: MaintenanceDocumentEntry[], circuitCoun
   if (id === 'kylmaaine') return 'Kylmäaine';
   if (id.startsWith('piiri:')) return circuitCount > 1 ? `Piiri ${Number(id.slice(6)) + 1}` : 'Kylmäainepiiri';
   if (id === 'lauhdutus') {
-    if (entries.every((e) => e.kind === 'condenserUnit')) return 'Lauhdutin';
+    if (entries.some((e) => e.kind === 'condenserConfig') || entries.every((e) => e.kind === 'condenserUnit')) return 'Lauhdutin';
     return entries.length === 1 ? stripSectionNumber(entries[0].title) : 'Lauhdutus';
   }
   if (id === 'hoyrystys') {

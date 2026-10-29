@@ -1,10 +1,7 @@
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
-import { chillerLauhdutinTypeOptions, lauhdutinTypeOptions } from '../../lib/huoltoRaportti/constants';
-import { hasExternalNestelauhdutin } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import {
   ilpJarjestelmaOptions,
   ilpSisayksikkoChoices,
-  isKylmioDevice,
   mlpJaahdytysOptions,
   vakHasRefrigerant,
   type IlpJarjestelma,
@@ -21,8 +18,6 @@ function FormCheckbox(props: { label: string; checked: boolean; onChange: (check
 
 type Props = {
   form: HuoltoReportData;
-  onPatchForm: (patch: Partial<HuoltoReportData>) => void;
-  onCondenserTypeChange: (tyyppi: HuoltoReportData['lauhdutinTyyppiLaite']) => void;
   onFreeCoolingChange: (enabled: boolean) => void;
   onKokoonpanoChange: (next: LaiteKokoonpano, extra?: Partial<HuoltoReportData>) => void;
 };
@@ -46,46 +41,16 @@ function ilpCountPatch(form: HuoltoReportData, jarjestelma: IlpJarjestelma): Par
   };
 }
 
-export function KokoonpanoSection({ form, onPatchForm, onCondenserTypeChange, onFreeCoolingChange, onKokoonpanoChange }: Props) {
+export function KokoonpanoSection({ form, onFreeCoolingChange, onKokoonpanoChange }: Props) {
   const k = form.laiteKokoonpano ?? {};
   const type = form.laiteTyyppi;
   const set = (patch: Partial<LaiteKokoonpano>, extra?: Partial<HuoltoReportData>) =>
     onKokoonpanoChange({ ...k, ...patch }, extra);
 
-  const condenserSelect = (options: readonly { value: string; label: string }[]) => (
-    <label className="huolto-span-all">
-      Lauhdutustapa *
-      <select
-        value={form.lauhdutinTyyppiLaite ?? ''}
-        onChange={(e) => onCondenserTypeChange(e.target.value as HuoltoReportData['lauhdutinTyyppiLaite'])}
-      >
-        {options.map((opt) => (
-          <option key={opt.value || 'empty'} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-    </label>
-  );
-
-  const chillerCondenser = (
-    <>
-      {condenserSelect(chillerLauhdutinTypeOptions)}
-      {hasExternalNestelauhdutin(form.lauhdutinTyyppiLaite) ? (
-        <FormCheckbox
-          label="Yhteinen nestelauhdutus kaikille piireille"
-          checked={form.vjNestelauhdutusJaettu ?? true}
-          onChange={(checked) => onPatchForm({ vjNestelauhdutusJaettu: checked })}
-        />
-      ) : null}
-    </>
-  );
-
   return (
     <section className="maintenance-report-tab-section huolto-kokoonpano form-grid">
-      {isKylmioDevice(type) ? condenserSelect(lauhdutinTypeOptions) : null}
-
       {type === 'vedenjäähdytyskone' ? (
         <>
-          {chillerCondenser}
           <FormCheckbox
             label="Vapaajäähdytys"
             checked={Boolean(form.vapaajahdytysKaytossa)}
@@ -106,7 +71,6 @@ export function KokoonpanoSection({ form, onPatchForm, onCondenserTypeChange, on
             checked={vakHasRefrigerant(form)}
             onChange={(checked) => set({ vakKylmaainepiiri: checked })}
           />
-          {vakHasRefrigerant(form) ? chillerCondenser : null}
           <FormCheckbox
             label="Vapaajäähdytys"
             checked={Boolean(form.vapaajahdytysKaytossa)}

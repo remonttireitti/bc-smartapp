@@ -245,8 +245,6 @@ export function MaintenanceReportTabContent({
     return (
       <KokoonpanoSection
         form={form}
-        onPatchForm={onPatchForm}
-        onCondenserTypeChange={onCondenserTypeChange}
         onFreeCoolingChange={onFreeCoolingChange}
         onKokoonpanoChange={onKokoonpanoChange}
       />

@@ -47,8 +47,6 @@ export const ilpJarjestelmaOptions: { value: IlpJarjestelma; label: string; hint
 
 export function usesKokoonpanoStep(laiteTyyppi: string): boolean {
   return [
-    'pakastin',
-    'kylmäkoneikko',
     'vedenjäähdytyskone',
     'vakioilmastointtikone',
     'mlp',
@@ -58,6 +56,13 @@ export function usesKokoonpanoStep(laiteTyyppi: string): boolean {
 
 export function isKylmioDevice(laiteTyyppi: string): boolean {
   return laiteTyyppi === 'pakastin' || laiteTyyppi === 'kylmäkoneikko';
+}
+
+/** Laitetyypit, joilla lauhdutustapa kysytään Lauhdutin-moduulissa (ei Kokoonpanossa). */
+export function usesCondenserConfig(form: KokoonpanoForm): boolean {
+  return isKylmioDevice(form.laiteTyyppi)
+    || form.laiteTyyppi === 'vedenjäähdytyskone'
+    || (form.laiteTyyppi === 'vakioilmastointtikone' && vakHasRefrigerant(form));
 }
 
 /** Uuden raportin oletuskokoonpano (vanhoissa raporteissa undefined = vanha rakenne). */
@@ -148,13 +153,6 @@ export function kokoonpanoComplete(form: KokoonpanoForm & { lauhdutinTyyppiLaite
       return !k || k.mlpJaahdytys === undefined || Boolean(k.mlpJaahdytys);
     case 'lämpöpumppu':
       return !k || k.ilpJarjestelma === undefined || Boolean(k.ilpJarjestelma);
-    case 'vakioilmastointtikone':
-      if (k?.vakKylmaainepiiri === false) return true;
-      return Boolean(form.lauhdutinTyyppiLaite);
-    case 'vedenjäähdytyskone':
-    case 'pakastin':
-    case 'kylmäkoneikko':
-      return Boolean(form.lauhdutinTyyppiLaite);
     default:
       return true;
   }

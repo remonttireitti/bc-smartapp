@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import type { EvaporatorData, HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { createEmptyEvaporatorData } from '../../lib/huoltoRaportti/defaults';
 import { isChillerLikeDevice, isSharedEvaporatorAcrossCircuits } from '../../lib/huoltoRaportti/deviceModuleLogic';
-import { getEvaporatorCircuitCount } from '../../lib/huoltoRaportti/evaporatorHelpers';
+import { getEvaporatorCircuitCount, kylmioEvaporatorTitle } from '../../lib/huoltoRaportti/evaporatorHelpers';
 import { hoyrystinUnitTitle } from '../../lib/huoltoRaportti/sectionTitles';
 
 export function evaporatorTitleForIndex(form: HuoltoReportData, index: number): string {
@@ -13,6 +13,7 @@ export function evaporatorTitleForIndex(form: HuoltoReportData, index: number): 
     }
     return 'Höyrystin (yhteinen kaikille piireille)';
   }
+  if (form.laiteTyyppi === 'pakastin' || form.laiteTyyppi === 'kylmäkoneikko') return kylmioEvaporatorTitle(form, index);
   return hoyrystinUnitTitle(form.laiteTyyppi, index);
 }
 

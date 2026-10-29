@@ -679,6 +679,8 @@ export type HuoltoReportData = {
   kylmaaineMaaraYhteensa: string;
   kylmaaineCO2Ekv: string;
   hoyrystimienMaara: string;
+  /** Kylmiö: höyrystimien määrä kylmäainepiireittäin, pilkulla erotettuna ("2,1"). Puuttuu vanhoista → johdetaan hoyrystimienMaara:sta. */
+  hoyrystimetPiireittain?: string;
   /** Kylmiö, erillinen ilmalauhdutin: lauhduttimien määrä (tyhjä = piirien mukaan). */
   lauhduttimienMaara?: string;
   hoyrystinTyyppi: string;
