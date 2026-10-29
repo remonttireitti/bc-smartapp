@@ -44,7 +44,7 @@ export default function PortalFilesPage({ session, kind = 'file', title = 'Tiedo
       ) : files.length === 0 ? (
         <section className="panel"><p className="muted">Ei vielä.</p></section>
       ) : (
-        <section className="panel customer-collapsible"><CustomerDocumentTable documents={files} hideKind /></section>
+        <section className="panel customer-collapsible"><CustomerDocumentTable documents={files} hideKind portal /></section>
       )}
     </AppLayout>
   );

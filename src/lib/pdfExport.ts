@@ -14,16 +14,20 @@ const MARGIN_MM = 12;
 const RENDER_W_PX = 760; // ≈ A4 sisäleveys 96 dpi
 
 /** Renderöi elementin A4-sivuiksi; sivunvaihdot rivien/lohkojen rajoille. */
-export async function renderElementToPdf(source: HTMLElement, fileName: string): Promise<File> {
+export async function renderElementToPdf(source: HTMLElement, fileName: string, options?: { inPlace?: boolean }): Promise<File> {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas-pro'), import('jspdf')]);
-  const holder = document.createElement('div');
-  holder.style.cssText = `position:fixed;left:-10000px;top:0;width:${RENDER_W_PX}px;background:#fff;`;
-  holder.className = 'pdf-export-holder';
-  const clone = source.cloneNode(true) as HTMLElement;
-  clone.classList.add('pdf-a4');
-  clone.querySelectorAll('img').forEach((img) => { img.loading = 'eager'; img.decoding = 'sync'; img.style.filter = 'none'; });
-  holder.appendChild(clone);
-  document.body.appendChild(holder);
+  // inPlace: lähde on jo omassa dokumentissaan (esim. upotettu iframe) leveydellä RENDER_W_PX — ei kloonata.
+  const inPlace = options?.inPlace === true;
+  const holder = inPlace ? source : document.createElement('div');
+  if (!inPlace) {
+    holder.style.cssText = `position:fixed;left:-10000px;top:0;width:${RENDER_W_PX}px;background:#fff;`;
+    holder.className = 'pdf-export-holder';
+    const clone = source.cloneNode(true) as HTMLElement;
+    clone.classList.add('pdf-a4');
+    clone.querySelectorAll('img').forEach((img) => { img.loading = 'eager'; img.decoding = 'sync'; img.style.filter = 'none'; });
+    holder.appendChild(clone);
+    document.body.appendChild(holder);
+  }
   try {
     await Promise.all([...holder.querySelectorAll('img')].map((img) => (img.complete && img.naturalWidth ? img.decode?.().catch(() => null) : new Promise((r) => { img.onload = img.onerror = () => r(null); window.setTimeout(() => r(null), 8000); }))));
     const top = holder.getBoundingClientRect().top;
@@ -61,7 +65,7 @@ export async function renderElementToPdf(source: HTMLElement, fileName: string):
     const blob = pdf.output('blob');
     return new File([blob], `${fileName.replace(/[\\/:*?"<>|]+/g, '-')}.pdf`, { type: 'application/pdf' });
   } finally {
-    holder.remove();
+    if (!inPlace) holder.remove();
   }
 }
 

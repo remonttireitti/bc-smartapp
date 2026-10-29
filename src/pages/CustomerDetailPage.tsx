@@ -75,6 +75,7 @@ import {
   type DecommissionedMap,
 } from '../lib/equipmentDecommission';
 import { emitDataChanged } from '../lib/dataRefresh';
+import { canDeleteLinkedDocument, deleteLinkedDocument } from '../lib/deleteLinkedDocument';
 import { loadLinkedLastService, mergeLatest } from '../lib/equipmentLinks';
 import type { Customer, Equipment, Partnership, Subscriber } from '../types';
 
@@ -110,6 +111,7 @@ export default function CustomerDetailPage({ session }: Props) {
   const [decommissionTarget, setDecommissionTarget] = useState<Equipment | null>(null);
   const [decommissionError, setDecommissionError] = useState<string | null>(null);
   const [documents, setDocuments] = useState<CustomerLinkedDocument[]>([]);
+  const [deletingDocKey, setDeletingDocKey] = useState<string | null>(null);
   const [canWrite, setCanWrite] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [sectionDialog, setSectionDialog] = useState<CustomerSectionDialog | null>(null);
@@ -666,6 +668,30 @@ export default function CustomerDetailPage({ session }: Props) {
   }
 
   /** Asiakasportaali / esikatselu: täsmälleen asiakkaan näkymä, ei henkilöstön toimintoja. */
+  function canDeleteDocument(d: CustomerLinkedDocument): boolean {
+    return canDeleteLinkedDocument(d, {
+      userId: session.user.id,
+      companyId: profile?.company_id,
+      role: profile?.role,
+      isGlobalAdmin: profile?.is_global_admin,
+    });
+  }
+
+  async function deleteDocument(d: CustomerLinkedDocument) {
+    if (!canDeleteDocument(d)) return;
+    if (!window.confirm(`Poistetaanko "${d.title}" pysyvästi? Tätä ei voi perua.`)) return;
+    const key = `${d.kind}:${d.id}`;
+    setDeletingDocKey(key);
+    const { error: deleteError } = await deleteLinkedDocument(supabase, d);
+    setDeletingDocKey(null);
+    if (deleteError) {
+      window.alert(deleteError.message);
+      return;
+    }
+    setDocuments((prev) => prev.filter((x) => !(x.kind === d.kind && x.id === d.id)));
+    emitDataChanged();
+  }
+
   const portalView = isPortalView(profile);
   // Asiakasportaali on rajattu omaan kohteeseen (esikatselussakaan ei muiden asiakkaiden sivuja).
   const portalCustomerId = getPortalCustomerId(profile);
@@ -1207,7 +1233,7 @@ export default function CustomerDetailPage({ session }: Props) {
               title={`${label} (${list.length})`}
               collapseKey={`portal-customer:${kind}`}
             >
-              {list.length === 0 ? <p className="muted">Ei vielä.</p> : <CustomerDocumentTable documents={list} hideKind />}
+              {list.length === 0 ? <p className="muted">Ei vielä.</p> : <CustomerDocumentTable documents={list} hideKind portal />}
             </CollapsibleSection>
           );
         })
@@ -1235,7 +1261,13 @@ export default function CustomerDetailPage({ session }: Props) {
             {list.length === 0 ? (
               <p className="muted">Ei vielä.</p>
             ) : (
-              <CustomerDocumentTable documents={list} hideKind />
+              <CustomerDocumentTable
+                documents={list}
+                hideKind
+                canDelete={canDeleteDocument}
+                onDelete={(d) => void deleteDocument(d)}
+                deletingKey={deletingDocKey}
+              />
             )}
           </CollapsibleSection>
         );

@@ -36,6 +36,13 @@ export type CustomerLinkedDocument = {
   equipmentLabel?: string | null;
   href: string;
   printHref?: string;
+  /** Poisto-oikeuden päättelyyn (vain henkilökunnan näkymä). */
+  owner?: {
+    ownerCompanyId?: string | null;
+    createdByCompanyId?: string | null;
+    createdByUserId?: string | null;
+    assignedUserId?: string | null;
+  };
 };
 
 /** Raportin huoltopäivä YYYY-MM-DD (huoltoPaivamaara: ISO tai d.m.yyyy), muuten null. */
@@ -88,17 +95,17 @@ export async function loadCustomerLinkedDocuments(
   const [workResult, maintenanceResult, quoteResult, tempReportResult, fileResult] = await Promise.all([
     supabase
       .from('work_reports')
-      .select('id, title, status, created_at, updated_at, equipment_id, equipment:equipment_id(name, tag)')
+      .select('id, title, status, created_at, updated_at, equipment_id, created_by_user_id, owner_company_id, created_by_company_id, equipment:equipment_id(name, tag)')
       .eq('customer_id', customerId)
       .order('updated_at', { ascending: false }),
     supabase
       .from('maintenance_reports')
-      .select('id, status, title, data, created_at, updated_at, equipment_id, equipment(name, tag)')
+      .select('id, status, title, data, created_at, updated_at, equipment_id, owner_company_id, created_by_company_id, assigned_user_id, equipment(name, tag)')
       .eq('customer_id', customerId)
       .order('updated_at', { ascending: false }),
     supabase
       .from('quote_requests')
-      .select('id, title, status, data, created_at, updated_at, equipment_id, equipment(name, tag)')
+      .select('id, title, status, data, created_at, updated_at, equipment_id, owner_company_id, created_by_company_id, equipment(name, tag)')
       .eq('customer_id', customerId)
       .order('updated_at', { ascending: false }),
     supabase
@@ -156,6 +163,9 @@ export async function loadCustomerLinkedDocuments(
       updated_at: string;
       equipment_id: string | null;
       equipment: unknown;
+      created_by_user_id?: string | null;
+      owner_company_id?: string | null;
+      created_by_company_id?: string | null;
     };
     if (
       portalReadOnly
@@ -187,6 +197,7 @@ export async function loadCustomerLinkedDocuments(
       equipmentLabel,
       href: portalReadOnly ? `/tyoraportit/${report.id}/tuloste` : `/tyoraportit/${report.id}`,
       printHref: `/tyoraportit/${report.id}/tuloste`,
+      owner: { ownerCompanyId: report.owner_company_id, createdByCompanyId: report.created_by_company_id, createdByUserId: report.created_by_user_id },
     });
   }
 
@@ -200,6 +211,9 @@ export async function loadCustomerLinkedDocuments(
       updated_at: string;
       equipment_id: string | null;
       equipment: unknown;
+      owner_company_id?: string | null;
+      created_by_company_id?: string | null;
+      assigned_user_id?: string | null;
     };
     if (portalReadOnly && !isMaintenanceReportPublished(report.status)) continue;
     const printHref = `/huoltoraportit/${report.id}/tuloste`;
@@ -221,6 +235,7 @@ export async function loadCustomerLinkedDocuments(
           ? printHref
           : `/huoltoraportit/${report.id}`,
       printHref,
+      owner: { ownerCompanyId: report.owner_company_id, createdByCompanyId: report.created_by_company_id, assignedUserId: report.assigned_user_id },
     });
   }
 
@@ -234,6 +249,8 @@ export async function loadCustomerLinkedDocuments(
       updated_at: string;
       equipment_id: string | null;
       equipment: unknown;
+      owner_company_id?: string | null;
+      created_by_company_id?: string | null;
     };
     const data = normalizeQuoteRequestData(quote.data);
     const typeLabel = QUOTE_TYPE_LABELS[data.type] ?? 'Tarjous';
@@ -251,6 +268,7 @@ export async function loadCustomerLinkedDocuments(
       equipmentLabel: formatEquipmentLabel(relationEquipment(quote.equipment)),
       href: portalReadOnly ? `/tarjouspyynnot/${quote.id}/tuloste` : `/tarjouspyynnot/${quote.id}`,
       printHref: `/tarjouspyynnot/${quote.id}/tuloste`,
+      owner: { ownerCompanyId: quote.owner_company_id, createdByCompanyId: quote.created_by_company_id },
     });
   }
 
