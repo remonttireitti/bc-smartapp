@@ -1,6 +1,7 @@
 import {
   expensePartnerBilled,
   logHoursPartnerBilled,
+  logExpensesInUrakka,
   logIsExtraBilling,
   logTripsPartnerBilled,
   partnerBillingContext,
@@ -73,7 +74,7 @@ export type BillableLine = {
   total: number;
   included: boolean;
   /** Rivi jätetty laskuttamatta provisiotilan vuoksi: vain provisio / rivin laskutetaan-valinta pois. */
-  notBilledReason?: 'commission_only' | 'toggle';
+  notBilledReason?: 'commission_only' | 'toggle' | 'urakka';
   /** Asiakashinta puuttuu — kumppanin täydennettävä. */
   priceMissing?: boolean;
   /** Kylmäaineen varasto-osto — vähennys kumppanilaskutuksesta. */
@@ -437,10 +438,14 @@ export function calculateWorkReportBillable(input: {
 
     for (const expense of log.expense_lines ?? []) {
       const expenseRowBilled = expensePartnerBilled(partnerCtx, log, expense);
-      const included = expensesEnabled && expenseRowBilled;
+      // Urakka-kytkin: kulut kuuluvat urakkaan, ellei rivi ole merkitty Laskutettavaksi (→ Lisälaskutus).
+      const expensesInUrakka = logExpensesInUrakka(log);
+      const urakkaRowBilled = !expensesInUrakka || expense.urakka_billed === true;
+      const included = expensesEnabled && expenseRowBilled && urakkaRowBilled;
       // bill_to_partner=false (kuuluu urakkaan / vain asiakkaalle) ei ole provisiotilan valinta.
-      const expenseReason =
-        expense.bill_to_partner === false && !commissionOnlyAuthor ? {} : reasonFor(expenseRowBilled);
+      const expenseReason = !urakkaRowBilled && !commissionOnlyAuthor
+        ? ({ notBilledReason: 'urakka' } as const)
+        : expense.bill_to_partner === false && !commissionOnlyAuthor ? {} : reasonFor(expenseRowBilled);
       const billed =
         expense.expense_type === 'km'
           ? tripKmExpenseBillingLine(expense)
@@ -468,6 +473,7 @@ export function calculateWorkReportBillable(input: {
         included,
         ...expenseReason,
         ...(expense.expense_type ? { expenseType: expense.expense_type } : {}),
+        ...(expensesInUrakka && expense.urakka_billed === true ? { extraBilling: true } : {}),
       });
       if (included) summary.expensesTotal += billed.total;
       else summary.excludedSubtotal += billed.total;

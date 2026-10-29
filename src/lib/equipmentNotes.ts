@@ -16,8 +16,6 @@ export type EquipmentNote = {
 export const EQUIPMENT_NOTE_COLUMNS =
   'id, equipment_id, entry_date, author_company_name, installer_name, installer_tukes, text, is_service_visit, created_at';
 
-export const EQUIPMENT_NOTE_QUICK_PICKS = ['Hälytys kuitattu', 'Höyrystin sulatettu'] as const;
-
 /** null = taulua ei ole (tai ei oikeutta) → lisäys piilotetaan. */
 export async function loadEquipmentNotes(
   supabase: SupabaseClient,

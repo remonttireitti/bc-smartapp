@@ -12,6 +12,8 @@ export interface DailyLogPartnerBilling {
   warranty?: boolean;
   /** Takuu: kirjauksen ajomatkat (km) eivät laskutu kenellekään. */
   trips_warranty?: boolean;
+  /** Urakka: kirjauksen tunnit ja kulut kuuluvat urakkahintaan; vain rivikohtaisesti Laskutettava-merkityt kulurivit laskutetaan (Lisälaskutus). */
+  urakka_all_in?: boolean;
   /** Kylmäainerivit (indeksi = tallennusjärjestys created_at): takuu, kumppanin varaston myyntiprovisio. */
   refrigerant_flags?: RefrigerantLineFlag[];
 }
@@ -67,6 +69,7 @@ export function parseDailyLogPartnerBilling(raw: unknown): DailyLogPartnerBillin
   if (v.extra_billing === true) out.extra_billing = true;
   if (v.warranty === true) out.warranty = true;
   if (v.trips_warranty === true) out.trips_warranty = true;
+  if (v.urakka_all_in === true) out.urakka_all_in = true;
   const refrigerantFlags = parseRefrigerantFlags(v.refrigerant_flags);
   if (refrigerantFlags) out.refrigerant_flags = refrigerantFlags;
   return out;
@@ -83,6 +86,7 @@ export function serializeDailyLogPartnerBilling(
   if (value.extra_billing === true) out.extra_billing = true;
   if (value.warranty === true) out.warranty = true;
   if (value.trips_warranty === true) out.trips_warranty = true;
+  if (value.urakka_all_in === true) out.urakka_all_in = true;
   const refrigerantFlags = parseRefrigerantFlags(value.refrigerant_flags);
   if (refrigerantFlags) out.refrigerant_flags = refrigerantFlags;
   return Object.keys(out).length ? out : null;
@@ -150,6 +154,11 @@ export function notBilledReason(
 ): 'commission_only' | 'toggle' | null {
   if (isCommissionOnly(ctx, log)) return 'commission_only';
   return rowBilled ? null : 'toggle';
+}
+
+/** Urakka-kirjaus, jossa tunnit ja kulut kuuluvat urakkahintaan (Urakka-kytkin). */
+export function logExpensesInUrakka(log: { entry_type?: string; partner_billing?: unknown }): boolean {
+  return log.entry_type === 'fixed_price' && parseDailyLogPartnerBilling(log.partner_billing).urakka_all_in === true;
 }
 
 /** Lisälaskutus-kirjaus (urakkaraportissa urakan päälle laskutettava työ/kulut). */

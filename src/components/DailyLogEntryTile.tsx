@@ -86,6 +86,8 @@ export function buildDailyLogEntryTiles(
     subtitle: workSubtitleParts.join(' · '),
     ...(parseDailyLogPartnerBilling(log.partner_billing).warranty === true
       ? { marker: 'takuu' }
+      : log.entry_type === 'fixed_price' && parseDailyLogPartnerBilling(log.partner_billing).urakka_all_in === true
+      ? { marker: 'urakka' }
       : parseDailyLogPartnerBilling(log.partner_billing).extra_billing === true
       ? { marker: 'lisälaskutus' }
       : options.partnerBilling?.commissionOnly
