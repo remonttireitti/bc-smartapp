@@ -167,6 +167,41 @@ export function dueState(lastYmd: string | null, intervalMonths: number, todayYm
   return { state: 'ok', dueYmd };
 }
 
+/** 'tänään' / 'X pv sitten' (<14 pv) / 'X vk sitten' (<8 vk) / 'X kk sitten'. */
+export function agoLabelFi(lastYmd: string, todayYmd: string): string {
+  const days = Math.max(0, daysBetween(lastYmd, todayYmd));
+  if (days === 0) return 'tänään';
+  if (days < 14) return `${days} pv sitten`;
+  if (days < 56) return `${Math.round(days / 7)} vk sitten`;
+  return `${Math.max(2, Math.round(days / 30.44))} kk sitten`;
+}
+
+/** 'tänään' / 'X pv päästä' / 'X vk päästä' / 'X kk päästä'. */
+export function untilLabelFi(dueYmd: string, todayYmd: string): string {
+  const days = Math.max(0, daysBetween(todayYmd, dueYmd));
+  if (days === 0) return 'tänään';
+  if (days < 14) return `${days} pv päästä`;
+  if (days < 56) return `${Math.round(days / 7)} vk päästä`;
+  return `${Math.max(2, Math.round(days / 30.44))} kk päästä`;
+}
+
+/** Vuototarkastuksen tilateksti; null = ei näytetä (ajan tasalla tai ei vaadita). */
+export function leakStatusText(leak: { state: DueState | null; dueYmd: string | null }, todayYmd: string): { label: string; tone: 'warn' | 'late' } | null {
+  if (leak.state === 'myöhässä') return { label: 'Vuototarkastus myöhässä', tone: 'late' };
+  if (leak.state === 'erääntyy') return { label: leak.dueYmd ? `Vuototarkastus erääntyy ${untilLabelFi(leak.dueYmd, todayYmd)}` : 'Vuototarkastus erääntyy', tone: 'warn' };
+  if (leak.state === 'ei-tietoa') return { label: 'Ei vuototarkastusta', tone: 'warn' };
+  return null;
+}
+
+/** Huollon tilateksti: myöhässä / erääntyy / Huollettu X sitten / ei huoltoa. */
+export function serviceStatusText(service: { state: DueState; lastYmd: string | null; dueYmd?: string | null }, todayYmd: string): { label: string; tone: 'ok' | 'warn' | 'late' } {
+  if (service.state === 'myöhässä') return { label: 'Huolto myöhässä', tone: 'late' };
+  if (service.state === 'erääntyy') return { label: `Huolto erääntyy${service.dueYmd ? ` ${untilLabelFi(service.dueYmd, todayYmd)}` : ''}`, tone: 'warn' };
+  if (service.state === 'ei-tietoa' || !service.lastYmd) return { label: 'Ei huoltoa', tone: 'warn' };
+  const ago = agoLabelFi(service.lastYmd, todayYmd);
+  return { label: ago === 'tänään' ? 'Huollettu tänään' : `Huollettu ${ago}`, tone: 'ok' };
+}
+
 export type DeviceSchedule = {
   serviceIntervalMonths: number;
   service: { state: DueState; dueYmd: string | null; lastYmd: string | null };

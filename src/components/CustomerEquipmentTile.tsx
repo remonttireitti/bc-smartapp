@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import CheckToggle from './CheckToggle';
-import type { DeviceSchedule } from '../lib/huoltoSchedule';
+import { leakStatusText, serviceStatusText, todayYmdLocal, type DeviceSchedule } from '../lib/huoltoSchedule';
 import { formatMaintenanceDateFi } from '../lib/equipmentMaintenanceHistory';
 import { Link } from 'react-router-dom';
 import DataTable, { type DataTableColumn } from './DataTable';
@@ -54,18 +54,11 @@ function typeGroupOf(deviceType: string | null | undefined): string {
 
 type SortKey = 'huolto_vanhin' | 'huolto_uusin' | 'nimi' | 'sijainti' | 'erääntyvät';
 
-const SERVICE_CHIP: Record<string, { label: string; cls: string } | null> = {
-  huollettu: { label: 'Huollettu', cls: 'chip-ok' },
-  'erääntyy': { label: 'Erääntyy', cls: 'chip-warn' },
-  'myöhässä': { label: 'Myöhässä', cls: 'chip-late' },
-  'ei-tietoa': { label: 'Ei huoltoa', cls: 'chip-warn' },
-  ok: null,
-};
-
 function ScheduleChips({ s }: { s: DeviceSchedule }) {
-  const svc = SERVICE_CHIP[s.service.state];
-  const leakDue = s.leak.state === 'erääntyy' || s.leak.state === 'myöhässä' || s.leak.state === 'ei-tietoa';
-  if (!svc && !leakDue) return null;
+  const today = todayYmdLocal();
+  const svcText = serviceStatusText(s.service, today);
+  const svc = { label: svcText.label, cls: svcText.tone === 'ok' ? 'chip-ok' : svcText.tone === 'late' ? 'chip-late' : 'chip-warn' };
+  const leakText = leakStatusText(s.leak, today);
   const leakTitle = s.leak.dueYmd ? `Vuototarkastus ${formatMaintenanceDateFi(s.leak.dueYmd)}` : 'Vuototarkastus';
   return (
     <span className="device-chips">
@@ -74,9 +67,9 @@ function ScheduleChips({ s }: { s: DeviceSchedule }) {
           {svc.label}
         </span>
       ) : null}
-      {leakDue ? (
-        <span className={`device-chip ${s.leak.state === 'myöhässä' ? 'chip-late' : 'chip-warn'}`} title={s.combineHint ? `${leakTitle} – tee huollon yhteydessä` : leakTitle}>
-          Vuoto&shy;tarkastus
+      {leakText ? (
+        <span className={`device-chip ${leakText.tone === 'late' ? 'chip-late' : 'chip-warn'}`} title={s.combineHint ? `${leakTitle} – tee huollon yhteydessä` : leakTitle}>
+          {leakText.label}
         </span>
       ) : null}
     </span>
