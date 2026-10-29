@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import AppLayout from './AppLayout';
 import { useCompanyLicense } from '../hooks/useCompanyLicense';
 import { useProfile } from '../hooks/useProfile';
+import { isPortalView } from '../lib/portalPreview';
 import {
   isLicenseModuleAccessible,
   LICENSE_MODULE_DESCRIPTIONS,
@@ -18,7 +19,9 @@ type Props = {
 };
 
 export default function LicenseModuleGate({ session, moduleKey, children }: Props) {
-  const { profile } = useProfile(session);
+  const { profile, loading: profileLoading } = useProfile(session);
+  // Asiakas- ja tilaajaportaalin käyttäjät eivät tarvitse pakettia: portti koskee vain yrityksen omaa henkilökuntaa.
+  const portalUser = isPortalView(profile);
   const isGlobalAdmin = !!profile?.is_global_admin;
   const { license, loading, recordAccess } = useCompanyLicense(
     profile?.company_id,
@@ -27,10 +30,20 @@ export default function LicenseModuleGate({ session, moduleKey, children }: Prop
   );
 
   useEffect(() => {
-    if (loading || isGlobalAdmin || !license) return;
+    if (portalUser || loading || isGlobalAdmin || !license) return;
     if (!isLicenseModuleAccessible(license, moduleKey)) return;
     void recordAccess(moduleKey);
-  }, [loading, isGlobalAdmin, license, moduleKey, recordAccess]);
+  }, [portalUser, loading, isGlobalAdmin, license, moduleKey, recordAccess]);
+
+  if (portalUser) return <>{children}</>;
+
+  if (!profile && profileLoading) {
+    return (
+      <AppLayout session={session}>
+        <p className="muted page-loading-placeholder">Tarkistetaan käyttöoikeuksia…</p>
+      </AppLayout>
+    );
+  }
 
   if (loading && !license && !isGlobalAdmin) {
     return (
