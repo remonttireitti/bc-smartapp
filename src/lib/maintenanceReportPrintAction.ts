@@ -1,3 +1,4 @@
+import { logoBrandColor } from './logoBrandColor';
 import { buildMaintenanceReportPrintTitle, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
 import { filterFaultyKonvektoriRows } from './huoltoRaportti/konvektoriTarkastus';
 import { generateMaintenanceReportPrintDocument } from './huoltoRaportti/maintenanceReportPrintHtml';
@@ -20,6 +21,7 @@ type MaintenancePrintContext = {
   reportData: HuoltoReportData;
   companyName: string;
   logoUrl?: string;
+  brandColor?: string;
   imageUrls: Record<string, string>;
 };
 
@@ -80,7 +82,8 @@ async function loadPrintLogo(companyId: string, embed: boolean) {
   } catch {
     /* optional logo */
   }
-  return { companyName, logoUrl };
+  const brandColor = await logoBrandColor(logoUrl);
+  return { companyName, logoUrl, brandColor };
 }
 
 /**
@@ -123,12 +126,12 @@ async function loadMaintenancePrintContext(
     return { reportData, imageUrls };
   })();
 
-  const [{ companyName, logoUrl }, { reportData, imageUrls }] = await Promise.all([
+  const [{ companyName, logoUrl, brandColor }, { reportData, imageUrls }] = await Promise.all([
     loadPrintLogo(companyId, embed),
     imagesTask,
   ]);
 
-  return { reportData, companyName, logoUrl, imageUrls };
+  return { reportData, companyName, logoUrl, brandColor, imageUrls };
 }
 
 function buildMaintenancePrintBundle(
@@ -141,6 +144,7 @@ function buildMaintenancePrintBundle(
     generateMaintenanceReportPrintDocument(reportData, {
       companyName: ctx.companyName,
       logoUrl: ctx.logoUrl,
+      brandColor: ctx.brandColor,
       imageUrls: ctx.imageUrls,
     }),
     title,

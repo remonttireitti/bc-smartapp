@@ -77,7 +77,7 @@ export function getSpecificHeatCapacity(fluidName: string): number {
 /** true = Kyllä ✓, false/undefined = ei tulosteta */
 export function renderCheckbox(val: boolean | undefined, label: string = ''): string {
   if (val === true) {
-    return '<span style="color: #16a34a; font-weight: bold;">✓</span>' + (label ? ' ' + label : '');
+    return '<span class="st st-ok">✓</span>' + (label ? ' ' + label : '');
   }
   return '';
 }
@@ -85,7 +85,7 @@ export function renderCheckbox(val: boolean | undefined, label: string = ''): st
 /** Huoltotiedot: kylmäaine-/vuototarkastus (ei sama kuin mlp.kylmaaineVuotoja). */
 export function renderVuototarkastusStatus(checked: boolean | undefined): string {
   if (checked === true) {
-    return '<span style="color:#16a34a;font-weight:bold;">Vuototarkastus suoritettu, ei vuotoja ✓</span>';
+    return '<span class="st st-ok">Vuototarkastus suoritettu, ei vuotoja ✓</span>';
   }
   return '';
 }

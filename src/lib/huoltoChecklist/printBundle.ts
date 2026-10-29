@@ -1,3 +1,4 @@
+import { logoBrandColor } from '../logoBrandColor';
 import { resolveCompanyLogoUrl } from '../companyLogo';
 import { resolveMaintenanceReportImageUrls } from '../maintenanceReportImageUrl';
 import { embedPrintThumbnail, shrinkUrlMapForPrint } from '../printImageEmbed';
@@ -43,7 +44,7 @@ export async function loadChecklistPrintBundle(reportId: string, category: Check
     } catch {
       /* logo valinnainen */
     }
-    return { company, logoUrl };
+    return { company, logoUrl, brandColor: await logoBrandColor(logoUrl) };
   })();
   const paths = Object.values(data.items).flatMap((s) => (s.photos ?? []).map((p) => p.storagePath));
   const imagesTask = (async () => {
@@ -51,7 +52,7 @@ export async function loadChecklistPrintBundle(reportId: string, category: Check
     const raw = await resolveMaintenanceReportImageUrls(paths, 3600, embedImages ? undefined : 960);
     return embedImages ? shrinkUrlMapForPrint(raw) : raw;
   })();
-  const [{ company, logoUrl }, imageUrls] = await Promise.all([logoTask, imagesTask]);
+  const [{ company, logoUrl, brandColor }, imageUrls] = await Promise.all([logoTask, imagesTask]);
 
   const customerName = row.customers?.name ?? data.asiakas;
   const documentTitle = buildChecklistPrintTitle(data, customerName);
@@ -59,6 +60,7 @@ export async function loadChecklistPrintBundle(reportId: string, category: Check
     generateChecklistPrintHtml(data, {
       companyName: company?.name ?? '',
       logoUrl,
+      brandColor,
       imageUrls,
       customer: row.customers
         ? { name: row.customers.name, address: formatCustomerAddressParts(row.customers) || data.osoite }

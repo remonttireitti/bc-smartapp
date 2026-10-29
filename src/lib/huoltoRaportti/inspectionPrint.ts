@@ -4,23 +4,31 @@ import {
   type HuoltoInspectionStatus,
 } from './huoltoInspectionStatus';
 
-export function inspectionStatusMark(status: HuoltoInspectionStatus): { mark: string; color: string } {
-  if (status === 'ok') return { mark: '✓', color: '#16a34a' };
-  if (status === 'faulty') return { mark: '✗', color: '#dc2626' };
-  if (status === 'na') return { mark: 'N/A', color: '#64748b' };
-  return { mark: '–', color: '#9ca3af' };
+export function inspectionStatusMark(status: HuoltoInspectionStatus): { mark: string; cls: string } {
+  if (status === 'ok') return { mark: '✓', cls: 'st-ok' };
+  if (status === 'faulty') return { mark: '✗', cls: 'st-bad' };
+  if (status === 'na') return { mark: '', cls: 'st-na' };
+  return { mark: '', cls: 'st-na' };
 }
 
+/** Tarkastuksen tilamerkki (kortin otsikkoon): ✓ Kunnossa / ✗ Vika / Ei sovellu. */
+export function inspectionChipHtml(status: HuoltoInspectionStatus | unknown, esc: (v: unknown) => string): string {
+  const normalized = normalizeHuoltoInspectionStatus(status);
+  if (normalized === null) return '';
+  const { mark, cls } = inspectionStatusMark(normalized);
+  const text = HUOLTO_INSPECTION_STATUS_LABELS[normalized];
+  return `<span class="st ${cls}">${mark ? `${mark} ` : ''}${esc(text)}</span>`;
+}
+
+/** Tarkastusrivi: nimi vasemmalla, tilamerkki oikealla. */
 export function renderInspectionStatusRow(
   status: HuoltoInspectionStatus | unknown,
   label: string,
   esc: (v: unknown) => string,
 ): string {
-  const normalized = normalizeHuoltoInspectionStatus(status);
-  if (normalized === null) return '';
-  const { mark, color } = inspectionStatusMark(normalized);
-  const text = HUOLTO_INSPECTION_STATUS_LABELS[normalized];
-  return `<div style="padding:2px 0;"><span style="color:${color};font-weight:700;">${mark}</span> ${esc(label)}: ${esc(text)}</div>`;
+  const chip = inspectionChipHtml(status, esc);
+  if (!chip) return '';
+  return `<div class="kvr"><span>${esc(label)}</span><span>${chip}</span></div>`;
 }
 
 export function renderInspectionHuomioRow(
@@ -29,5 +37,5 @@ export function renderInspectionHuomioRow(
 ): string {
   const text = String(huomio ?? '').trim();
   if (!text) return '';
-  return `<div style="padding:2px 0;color:#b91c1c;">Vikakuvaus: ${esc(text)}</div>`;
+  return `<div class="warn bad">Vikakuvaus: ${esc(text)}</div>`;
 }
