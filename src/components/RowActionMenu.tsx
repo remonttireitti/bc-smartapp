@@ -16,10 +16,24 @@ export default function RowActionMenu({ items, label = 'Lisää toimintoja' }: {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    if (!open || !btnRef.current) return;
+    if (!open || !btnRef.current) {
+      setPos(null);
+      return;
+    }
     const r = btnRef.current.getBoundingClientRect();
     setPos({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
   }, [open]);
+
+  // Avaa ylös, jos paneeli menisi ruudun alareunan yli.
+  useLayoutEffect(() => {
+    if (!open || !pos || !panelRef.current || !btnRef.current) return;
+    const h = panelRef.current.getBoundingClientRect().height;
+    if (pos.top + h > window.innerHeight - 8) {
+      const r = btnRef.current.getBoundingClientRect();
+      const top = Math.max(8, r.top - h - 4);
+      if (top !== pos.top) setPos({ ...pos, top });
+    }
+  }, [open, pos]);
 
   useEffect(() => {
     if (!open) return;

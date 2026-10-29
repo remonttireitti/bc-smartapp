@@ -485,7 +485,10 @@ export default function CustomerDetailPage({ session }: Props) {
   }
 
   async function printQrLabelsForSelected() {
-    const list = activeEquipment.filter((eq) => selectedEquipmentIds.has(eq.id));
+    await printQrLabelsFor(activeEquipment.filter((eq) => selectedEquipmentIds.has(eq.id)));
+  }
+
+  async function printQrLabelsFor(list: Equipment[]) {
     if (list.length === 0) return;
     setError(null);
     const tokens = await fetchDeviceQrTokens(list.map((eq) => eq.id));
@@ -499,7 +502,10 @@ export default function CustomerDetailPage({ session }: Props) {
         setError('Osalla laitteista ei ole QR-linkkiä.');
         return;
       }
-      if (!window.confirm(`${missing.length} laitteelle luodaan julkinen huoltopöytäkirjalinkki. Jatketaanko?`)) return;
+      const confirmText = missing.length === 1
+        ? 'Laitteelle luodaan julkinen huoltopöytäkirjalinkki. Jatketaanko?'
+        : `${missing.length} laitteelle luodaan julkinen huoltopöytäkirjalinkki. Jatketaanko?`;
+      if (!window.confirm(confirmText)) return;
       try {
         for (const eq of missing) {
           const token = generateDeviceQrToken();
@@ -1163,6 +1169,7 @@ export default function CustomerDetailPage({ session }: Props) {
               onToggleSelected={toggleEquipmentSelection}
               onPrintCard={(eq) => void printEquipmentCard(eq)}
               onPrintHistory={(eq) => void printEquipmentHistory(eq)}
+              onPrintQr={portalView ? undefined : (eq) => void printQrLabelsFor([eq])}
               onDelete={(eq) => void deleteEquipmentItem(eq.id, eq.name)}
               onDecommission={decommissioned && canDecommission ? (eq) => {
                 setDecommissionError(null);
