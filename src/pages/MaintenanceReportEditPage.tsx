@@ -52,6 +52,7 @@ import {
   applyDeviceTypeSelection,
   buildDeviceDialogApplyResult,
 } from '../lib/huoltoRaportti/maintenanceDeviceDraft';
+import { offlineSaveAvailable } from '../lib/offline/sync';
 import { supabase } from '../lib/supabase';
 import { createRegistryCustomer } from '../lib/createRegistryCustomer';
 import { EQUIPMENT_SELECT, formatCustomerAddressParts } from '../lib/customers';
@@ -209,8 +210,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   const [printBusy, setPrintBusy] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [autoSaveState, setAutoSaveState] = useState<'idle' | 'saving' | 'saved' | 'offline'>('idle');
+  // Offline-tilassa tallennus jatkuu: muutokset menevät lähtevien jonoon (src/lib/offline) ja synkronoituvat verkon palatessa.
   const [isOnline, setIsOnline] = useState(
-    () => typeof navigator !== 'undefined' && navigator.onLine,
+    () => typeof navigator !== 'undefined' && (navigator.onLine || offlineSaveAvailable()),
   );
   const [registryMessage, setRegistryMessage] = useState<string | null>(null);
   const previousCustomerIdRef = useRef('');
@@ -1515,7 +1517,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   useEffect(() => {
     const goOnline = () => setIsOnline(true);
-    const goOffline = () => setIsOnline(false);
+    const goOffline = () => setIsOnline(offlineSaveAvailable());
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
     return () => {
