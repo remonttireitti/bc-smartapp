@@ -14,7 +14,6 @@ import {
   filterMaintenanceReportsForPortalView,
   isPortalUser,
   needsPortalClientFilter,
-  reportMatchesPortalSubscriber,
 } from '../lib/portalWorkOrder';
 import { getPortalSubscriberId } from '../lib/portalPreview';
 import { usePortalPreview } from '../hooks/usePortalPreview';
@@ -127,15 +126,6 @@ export default function MaintenanceReportsPage({ session }: Props) {
     return { drafts, done };
   }, [filteredReports, portalMode]);
 
-  const portalPendingCount = useMemo(() => {
-    if (!portalMode || !needsPortalClientFilter(profile) || !portalSubscriberId) return 0;
-    return reports.filter(
-      (r) =>
-        r.status !== 'submitted'
-        && reportMatchesPortalSubscriber(r, portalSubscriberId, subscriberCustomerIds),
-    ).length;
-  }, [portalMode, profile, portalSubscriberId, reports, subscriberCustomerIds]);
-
   async function deleteDraftReport(report: MaintenanceReportListRow) {
     if (!window.confirm('Poistetaanko huoltoraportin luonnos pysyvästi? Tätä toimintoa ei voi perua.')) {
       return;
@@ -179,15 +169,9 @@ export default function MaintenanceReportsPage({ session }: Props) {
           <p className="muted">
             {profile?.companies?.name ?? '—'} •{' '}
             {portalMode
-              ? 'valmiit huoltopöytäkirjat linkeistäsi kohteista'
+              ? 'valmiit huoltopöytäkirjat'
               : 'laiterekisteri ja huoltolomake'}
           </p>
-          {portalMode && (
-            <p className="muted" style={{ marginTop: '0.5rem' }}>
-              Näet vain <strong>valmiit</strong> huoltoraportit (tila Valmis). Luonnokset eivät näy tilaajalle.
-              Varmista, että asiakaskohde on linkitetty tilaajaan ja raportti on merkitty valmiiksi.
-            </p>
-          )}
         </div>
 
         {!portalMode && (
@@ -239,11 +223,7 @@ export default function MaintenanceReportsPage({ session }: Props) {
       ) : portalMode && grouped.done.length === 0 ? (
         <section className="panel">
           <p>
-            {search.trim()
-              ? `Ei tuloksia haulle "${search.trim()}".`
-              : portalPendingCount > 0
-                ? `Ei toimitettuja huoltoraportteja vielä. Löytyi ${portalPendingCount} luonnosta linkitetyistä kohteista — merkitse raportti toimitetuksi, jotta se näkyy tilaajalle.`
-                : 'Ei toimitettuja huoltoraportteja vielä. Kun palveluyritys merkitsee raportin toimitetuksi ja kohde on linkitetty tilaajaan, raportti näkyy tässä.'}
+            {search.trim() ? `Ei tuloksia haulle "${search.trim()}".` : 'Ei valmiita huoltopöytäkirjoja vielä.'}
           </p>
         </section>
       ) : !portalMode && reports.length === 0 ? (

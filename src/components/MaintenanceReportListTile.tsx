@@ -1,3 +1,6 @@
+import { useMemo } from 'react';
+import PortalPdfCell from './PortalPdfCell';
+import { usePrintLog } from '../hooks/usePrintLog';
 import DataTable, { StatusMark, type DataTableColumn } from './DataTable';
 import {
   maintenanceReportTileColor,
@@ -65,6 +68,11 @@ export function MaintenanceReportListTable<T extends MaintenanceReportListItem>(
   // Portaali: ei asiakas-, osoite- eikä rekisterisaraketta (vain oma kohde).
   const columns = portal ? allColumns.filter((c) => !['customer', 'address', 'registry'].includes(c.key)) : allColumns;
   const anyDelete = !!onDelete && !!canDelete && reports.some((r) => canDelete(r));
+  const printItems = useMemo(
+    () => (portal ? reports.map((r) => ({ kind: 'maintenance_report' as const, id: r.id })) : []),
+    [portal, reports],
+  );
+  const { log, reload } = usePrintLog(printItems);
 
   return (
     <DataTable
@@ -78,7 +86,9 @@ export function MaintenanceReportListTable<T extends MaintenanceReportListItem>(
       rowAccent={(r) => maintenanceReportTileColor(r.status)}
       ariaLabel="Huoltoraportit"
       actions={
-        anyDelete
+        portal
+          ? (r) => <PortalPdfCell kind="maintenance_report" id={r.id} log={log} onPrinted={reload} />
+          : anyDelete
           ? (r) =>
               canDelete!(r) ? (
                 <button

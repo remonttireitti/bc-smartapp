@@ -1,3 +1,6 @@
+import { useMemo } from 'react';
+import PortalPdfCell from './PortalPdfCell';
+import { usePrintLog } from '../hooks/usePrintLog';
 import DataTable, { type DataTableColumn } from './DataTable';
 import type { WorkReport } from '../types';
 
@@ -27,6 +30,8 @@ export default function PortalWorkReportTable({
   reports: WorkReport[];
   hrefFor?: (r: WorkReport) => string;
 }) {
+  const printItems = useMemo(() => reports.map((r) => ({ kind: 'work_report' as const, id: r.id })), [reports]);
+  const { log, reload } = usePrintLog(printItems);
   const columns: DataTableColumn<WorkReport>[] = [
     { key: 'title', label: 'Työ', value: (r) => (r.heading || r.title || '').replace(/\s*bc_partner_copy_source_report_id:[0-9a-f-]{36}/gi, '') },
     { key: 'equipment', label: 'Laite', value: (r) => equipmentLabel(r) },
@@ -47,6 +52,7 @@ export default function PortalWorkReportTable({
         rowKey={(r) => r.id}
         rowHref={hrefFor}
         hideFilter
+        actions={(r) => <PortalPdfCell kind="work_report" id={r.id} log={log} onPrinted={reload} />}
         initialSort={{ key: 'date', dir: 'desc' }}
         ariaLabel="Työraportit"
       />
