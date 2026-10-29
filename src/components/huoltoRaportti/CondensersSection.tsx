@@ -55,6 +55,7 @@ function CondensersEditor({
           index={index}
           titleLabel={lauhdutinUnitTitle(form.laiteTyyppi, index)}
           data={condenser}
+          deviceCondenserType={form.lauhdutinTyyppiLaite}
           onChange={(data) => updateCondenser(index, data)}
         />
       ))}

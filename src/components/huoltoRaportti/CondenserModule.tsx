@@ -23,17 +23,21 @@ interface Props {
   onChange: (data: CondenserData) => void;
   documentUnitKey?: string;
   hidePartRow?: boolean;
+  /** Laitteen lauhdutustapa (Kokoonpano). Kun asetettu, tyyppiä ei kysytä uudelleen yksikön ikkunassa. */
+  deviceCondenserType?: string;
 }
 
-export function CondenserModule({ index, titleLabel, data, onChange, documentUnitKey, hidePartRow = false }: Props) {
+export function CondenserModule({ index, titleLabel, data, onChange, documentUnitKey, hidePartRow = false, deviceCondenserType }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(data);
   const status = condenserInspectionStatus(data);
-  const subtitle = lauhdutinTypeOptions.find((o) => o.value === data.tyyppi)?.label ?? '';
+  const typeFromDevice = (deviceCondenserType ?? '').trim() as LauhdutinType | '';
+  const effectiveType = typeFromDevice || data.tyyppi || '';
+  const subtitle = lauhdutinTypeOptions.find((o) => o.value === effectiveType)?.label ?? '';
 
   useEffect(() => {
-    if (dialogOpen) setDraft(data);
-  }, [dialogOpen, data]);
+    if (dialogOpen) setDraft(typeFromDevice ? { ...data, tyyppi: typeFromDevice } : data);
+  }, [dialogOpen, data, typeFromDevice]);
 
   const draftStatus = normalizeHuoltoInspectionStatus(draft.tarkastusTila) ?? condenserInspectionStatus(draft);
 
@@ -61,24 +65,26 @@ export function CondenserModule({ index, titleLabel, data, onChange, documentUni
     return (
       <>
         <div className="line-form-grid">
-          <label className="huolto-span-all">
-            Lauhdutin tyyppi
-            <select
-              value={source.tyyppi || ''}
-              onChange={(e) =>
-                setSource((prev) => ({
-                  ...prev,
-                  tyyppi: (e.target.value || undefined) as LauhdutinType | undefined,
-                }))
-              }
-            >
-              {lauhdutinTypeOptions.map((opt) => (
-                <option key={opt.value || 'empty'} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {typeFromDevice ? null : (
+            <label className="huolto-span-all">
+              Lauhdutin tyyppi
+              <select
+                value={source.tyyppi || ''}
+                onChange={(e) =>
+                  setSource((prev) => ({
+                    ...prev,
+                    tyyppi: (e.target.value || undefined) as LauhdutinType | undefined,
+                  }))
+                }
+              >
+                {lauhdutinTypeOptions.map((opt) => (
+                  <option key={opt.value || 'empty'} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <FormInput label="Valmistaja" value={source.valmistaja || ''} onChange={(v) => setSource((prev) => ({ ...prev, valmistaja: v }))} />
           <FormInput label="Malli" value={source.malli || ''} onChange={(v) => setSource((prev) => ({ ...prev, malli: v }))} />

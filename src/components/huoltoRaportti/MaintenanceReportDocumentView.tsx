@@ -239,6 +239,7 @@ function MaintenanceReportDocumentViewInner({
                   index={entry.unitIndex}
                   titleLabel={lauhdutinUnitTitle(form.laiteTyyppi, entry.unitIndex)}
                   data={form.condenserData[entry.unitIndex]}
+                  deviceCondenserType={form.lauhdutinTyyppiLaite}
                   onChange={(data) => {
                     const next = [...form.condenserData];
                     next[entry.unitIndex!] = data;
@@ -385,11 +386,11 @@ function MaintenanceReportDocumentViewInner({
             );
             };
             const isKok = (e: (typeof entries)[number]) => e.tabId === 'kokoonpano';
-            // Lauhdutustapa ensin, sitten määrät (Lauhduttimia riippuu lauhdutustavasta), sitten yksiköt.
+            // Perustiedot: kokoonpano (lauhdutustapa) ensin, sitten kylmiön yksiköiden määrät (Lauhduttimia riippuu lauhdutustavasta), sitten laitetiedot.
             return (
               <>
                 {entries.map((e, i) => (isKok(e) ? renderEntry(e, i) : null))}
-                {steps[activeStep]?.key === 'lammonsiirtimet' && isKylmioDevice(form.laiteTyyppi) ? (
+                {steps[activeStep]?.key === 'perustiedot' && isKylmioDevice(form.laiteTyyppi) ? (
                   <KylmioUnitCounts form={form} onPatchForm={onPatchForm} />
                 ) : null}
                 {entries.map((e, i) => (isKok(e) ? null : renderEntry(e, i)))}

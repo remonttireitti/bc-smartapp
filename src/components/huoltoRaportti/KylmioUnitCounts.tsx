@@ -1,4 +1,4 @@
-import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
+import type { CondenserData, HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { createEmptyCondenserData, createEmptyEvaporatorData } from '../../lib/huoltoRaportti/defaults';
 import { getCondenserCount, getEvaporatorCircuitCount } from '../../lib/huoltoRaportti/evaporatorHelpers';
 
@@ -49,7 +49,7 @@ export function KylmioUnitCounts({ form, onPatchForm }: Props) {
       if (lost && !window.confirm(`Poistetaanko lauhdutin ${condCount} kirjattuine tietoineen?`)) return;
     }
     const condenserData = form.condenserData.slice(0, n);
-    while (condenserData.length < n) condenserData.push(createEmptyCondenserData());
+    while (condenserData.length < n) condenserData.push({ ...createEmptyCondenserData(), tyyppi: (form.lauhdutinTyyppiLaite || undefined) as CondenserData['tyyppi'] });
     onPatchForm({ lauhduttimienMaara: String(n), condenserData });
   };
 
