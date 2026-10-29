@@ -84,5 +84,59 @@ const kylmaIdx = titles.findIndex((t) => /Kylmäaine/.test(t)), lauhIdx = titles
 check(kylmaIdx >= 0 && kylmaIdx < lauhIdx && lauhIdx < hoyIdx && hoyIdx < ohjIdx, 'C: järjestys kylmäaine → lauhdutin → höyrystin → ohjaus');
 check(titles.filter((t) => /Lauhdut/.test(t)).length === 1, 'C: lauhdutin vain yhdessä vaiheessa');
 await C.ctx.close();
+
+// ---- D: lauhdutustapa + lauhduttimien määrä Lauhdutin-moduulissa, höyrystimet piireittäin (ei tallennusta)
+async function openNew(snapshot, type) {
+  dev.device_type = type; dev.huolto_technical_snapshot = { laiteTyyppi: type, kylmaaineTyyppi: 'R-449A', ...snapshot };
+  const X = await mkCtx([], true);
+  await X.p.goto(`${BASE}/asiakkaat/${customer.id}/laitteet/${dev.id}`); await X.p.waitForTimeout(3000);
+  await vis(X.p).getByRole('link', { name: /Uusi huoltoraportti/ }).first().click(); await X.p.waitForTimeout(4000);
+  return X;
+}
+const stepTexts = async (X) => {
+  const chips = vis(X.p).locator('.maintenance-step-chip'); const n = await chips.count(); const out = [];
+  for (let i = 0; i < n; i++) {
+    await chips.nth(i).click(); await X.p.waitForTimeout(600);
+    out.push({ i, title: (await chips.nth(i).innerText()).replace(/^\d+\s+/, '').replace(/\s+(Valmis|Kesken|Vika)$/, '').trim(), text: await vis(X.p).locator('.maintenance-report-document').innerText() });
+  }
+  return out;
+};
+const kylmio = await openNew({ kylmaainePiireja: '2', hoyrystimetPiireittain: '2,1', hoyrystimienMaara: '3', lauhduttimienMaara: '2', laiteKonfiguraatio: { lauhdutinTyyppiLaite: 'erillinen_ilma' } }, TYPE);
+const ks = await stepTexts(kylmio);
+console.log('D vaiheet:', ks.map((x) => x.title).join(' > '));
+check(!/Lauhdutustapa|Höyrystimiä|Lauhduttimia|Kokoonpano/.test(ks[0].text), 'D: Perustiedoissa ei lauhdutustapaa, määriä eikä Kokoonpanoa');
+const lauh = ks.find((x) => /^Lauhdutin/.test(x.title));
+check(!!lauh && /Lauhdutustapa/.test(lauh.text) && /Lauhduttimia/.test(lauh.text), 'D: lauhdutustapa ja Lauhduttimia Lauhdutin-moduulissa');
+await ks.find(() => true) && await vis(kylmio.p).locator('.maintenance-step-chip').filter({ hasText: /^\s*\d+\s*Lauhdutin/ }).first().click(); await kylmio.p.waitForTimeout(600);
+const cfg = await vis(kylmio.p).evaluate((root) => { const sel = root.querySelector('.huolto-condenser-config select'); const out = root.querySelector('.huolto-condenser-config .huolto-count-value'); const r = (el) => el && Math.round(el.getBoundingClientRect().height); return { value: sel?.value, count: out?.textContent, selH: r(sel), selF: sel && getComputedStyle(sel).fontSize, btnH: r(root.querySelector('.huolto-condenser-config .konvektori-yesno-btn')), selTop: sel && Math.round(sel.getBoundingClientRect().top), outTop: out && Math.round(out.getBoundingClientRect().top) }; });
+check(cfg.value === 'erillinen_ilma', `D: lauhdutustapa esitäyttyy laitekortilta (${cfg.value})`);
+check(cfg.count === '2', `D: lauhduttimien määrä esitäyttyy (${cfg.count})`);
+check(cfg.selH === 48 && cfg.selF === '16px' && cfg.btnH === 48 && Math.abs(cfg.selTop - cfg.outTop) <= 1, `D: kentät 48/16 px ja samalla rivillä (${JSON.stringify(cfg)})`);
+const circ = ks.filter((x) => /^Piiri \d/.test(x.title));
+check(circ.length === 2 && circ.every((x) => /Höyrystimiä/.test(x.text)), `D: Höyrystimiä-määrä jokaisella piirillä (${circ.map((x) => x.title)})`);
+const counts = [];
+for (const c of circ) { await vis(kylmio.p).locator('.maintenance-step-chip').filter({ hasText: new RegExp(c.title) }).first().click(); await kylmio.p.waitForTimeout(500); counts.push(await vis(kylmio.p).locator('.huolto-count-value').first().innerText()); }
+check(counts.join() === '2,1', `D: piirikohtaiset määrät laitekortilta 2,1 (${counts})`);
+await vis(kylmio.p).locator('button[aria-label="Höyrystimiä +"]').click(); await kylmio.p.waitForTimeout(500);
+await vis(kylmio.p).locator('.maintenance-step-chip').filter({ hasText: /Höyrystin/ }).first().click(); await kylmio.p.waitForTimeout(800);
+const hy = await vis(kylmio.p).locator('.maintenance-report-document').innerText();
+check(/Piiri 1 — Höyrystin 1/.test(hy) && /Piiri 1 — Höyrystin 2/.test(hy) && /Piiri 2 — Höyrystin 1/.test(hy) && /Piiri 2 — Höyrystin 2/.test(hy), 'D: höyrystimet ryhmittyvät piireittäin (+1 piirille 2)');
+await kylmio.ctx.close();
+
+// vanha laitekortti: vain kokonaismäärä → piirille 1; yksi piiri → yksi määrä
+const vanha = await openNew({ kylmaainePiireja: '1', hoyrystimienMaara: '3' }, TYPE);
+const vs = await stepTexts(vanha);
+check(!/Höyrystimiä/.test(vs[0].text), 'D: vanha kortti: ei globaalia Höyrystimiä-valitsinta Perustiedoissa');
+await vis(vanha.p).locator('.maintenance-step-chip').filter({ hasText: /Kylmäainepiiri/ }).first().click(); await vanha.p.waitForTimeout(500);
+check((await vis(vanha.p).locator('.huolto-count-value').first().innerText()) === '3', 'D: vanha kortti: yhden piirin Höyrystimiä = 3');
+await vanha.ctx.close();
+
+// VJK: lauhdutustapa Lauhdutin-vaiheessa, ei Kokoonpanossa
+const vjk = await openNew({ kylmaainePiireja: '1', laiteKonfiguraatio: { lauhdutinTyyppiLaite: 'koneseen_integroitu' } }, 'vedenjäähdytyskone');
+const js = await stepTexts(vjk);
+console.log('D VJK vaiheet:', js.map((x) => x.title).join(' > '));
+check(!/Lauhdutustapa/.test(js[0].text), 'D: VJK: Perustiedoissa ei lauhdutustapaa');
+check(!!js.find((x) => /^Lauhdutin/.test(x.title) && /Lauhdutustapa/.test(x.text)), 'D: VJK: Lauhdutin-vaiheessa lauhdutustapa');
+await vjk.ctx.close();
 await b.close();
 console.log(fails ? `FAILS ${fails}` : 'ALL OK'); process.exit(fails ? 1 : 0);

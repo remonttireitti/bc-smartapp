@@ -18173,6 +18173,11 @@ label.has-error input { border-color: #b91c1c; }
   color: #475569 !important;
   line-height: 1.25;
 }
+.huolto-condenser-config { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.huolto-condenser-config .huolto-condenser-config-type { min-width: 0; }
+.huolto-condenser-config .huolto-span-all { grid-column: 1 / -1; }
+.huolto-condenser-config .huolto-count-stepper { min-width: 150px; }
+@media (max-width: 560px) { .huolto-condenser-config { grid-template-columns: minmax(0, 1fr); } }
 .huolto-unit-counts { grid-column: 1 / -1; width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px; }
 .huolto-count-stepper { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .huolto-count-label { font-size: 0.85rem; font-weight: 500; color: #475569; }

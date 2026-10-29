@@ -44,6 +44,7 @@ export type FieldModuleForm = {
   evaporatorData?: unknown[];
   kylmaainePiireja?: string;
   hoyrystimienMaara?: string;
+  hoyrystimetPiireittain?: string;
 };
 
 export const HOYRYSTIN_OHJAUS_YHTEINEN = 'Yhteinen';
@@ -52,6 +53,10 @@ export const HOYRYSTIN_OHJAUS_OMA = 'Jokaisella oma';
 /** Näkyvien höyrystimien määrä (sama sääntö kuin getEvaporatorCircuitCount kylmiöllä). */
 function evaporatorCount(form: FieldModuleForm): number {
   const len = Array.isArray(form.evaporatorData) ? form.evaporatorData.length : 0;
+  const perCircuit = String(form.hoyrystimetPiireittain ?? '').split(',').map((x) => parseInt(x.trim(), 10));
+  if (isKylmioDevice(form.laiteTyyppi) && perCircuit.length > 0 && perCircuit.every((n) => Number.isFinite(n))) {
+    return Math.min(10, Math.max(1, perCircuit.reduce((a, b) => a + Math.max(0, b), 0)));
+  }
   const explicit = parseInt(String(form.hoyrystimienMaara ?? ''), 10);
   if (isKylmioDevice(form.laiteTyyppi) && explicit >= 1) return Math.min(10, explicit);
   if (form.laiteTyyppi === 'kylmäkoneikko') return len;

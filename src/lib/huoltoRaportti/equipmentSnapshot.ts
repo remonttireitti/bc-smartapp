@@ -127,7 +127,7 @@ const EVAPORATOR_FIXED_TEXT = [
 /** Ohjaukset-vaiheen kiinteät kentät (laitekortille). */
 /** Laitetason kiinteät kokoonpanokentät (lauhdutustapa, LMV, höyrystimet, sulatus, VJK-jakotiedot). */
 export const DEVICE_CONFIG_FIELDS = [
-  'lauhdutinTyyppiLaite', 'lauhdutinLmvTyyppi', 'hoyrystinTyyppi', 'hoyrystimienMaara', 'sulatusKaytossa', 'sulatusTapa',
+  'lauhdutinTyyppiLaite', 'lauhdutinLmvTyyppi', 'hoyrystinTyyppi', 'hoyrystimienMaara', 'hoyrystimetPiireittain', 'sulatusKaytossa', 'sulatusTapa',
   'vjNestelauhdutusJaettu', 'hoyrystinYhteinenPiireissa', 'vapaajahdytysKaytossa',
 ] as const;
 
@@ -385,6 +385,7 @@ export function buildHuoltoEquipmentTechnicalSnapshot(data: HuoltoReportData): R
     mlpData: isMLP && data.mlpData ? stripMlpDataForRegistry(data.mlpData) : null,
     ...(data.laiteKokoonpano ? { laiteKokoonpano: data.laiteKokoonpano } : {}),
     ...(trim(data.hoyrystimienMaara) ? { hoyrystimienMaara: trim(data.hoyrystimienMaara) } : {}),
+    ...(trim(data.hoyrystimetPiireittain) ? { hoyrystimetPiireittain: trim(data.hoyrystimetPiireittain) } : {}),
     ...(trim(data.lauhduttimienMaara) ? { lauhduttimienMaara: trim(data.lauhduttimienMaara) } : {}),
     ...(trim(data.lauhdutinTyyppiLaite) ? { lauhdutinTyyppiLaite: trim(data.lauhdutinTyyppiLaite) } : {}),
     ...(() => {
@@ -556,7 +557,7 @@ export function applyEquipmentSnapshotToForm(
       (createEmptyHuoltoReportData().laiteKokoonpano ?? {}) as Record<string, unknown>,
     ) as unknown as HuoltoReportData['laiteKokoonpano'];
   }
-  for (const k of ['hoyrystimienMaara', 'lauhduttimienMaara', 'lauhdutinTyyppiLaite'] as const) {
+  for (const k of ['hoyrystimienMaara', 'hoyrystimetPiireittain', 'lauhduttimienMaara', 'lauhdutinTyyppiLaite'] as const) {
     if (trim(snapAny[k]) && !trim((form as Record<string, unknown>)[k])) (patch as Record<string, unknown>)[k] = trim(snapAny[k]);
   }
   if (snapAny.laiteKonfiguraatio && typeof snapAny.laiteKonfiguraatio === 'object') {
@@ -567,6 +568,8 @@ export function applyEquipmentSnapshotToForm(
       if (curEmpty) (patch as Record<string, unknown>)[k] = v;
     }
   }
+  // Piireittäinen höyrystinmäärä vain jos raportilla ei ole jo omaa kokonaismäärää (ei muuta olemassa olevaa määrää).
+  if (trim(form.hoyrystimienMaara) && !patch.hoyrystimienMaara) delete (patch as Record<string, unknown>).hoyrystimetPiireittain;
   if (snapAny.ohjauksetKiinteat && typeof snapAny.ohjauksetKiinteat === 'object') {
     const current = form.kenttaModuulit?.ohjaukset ?? {};
     const filled: Record<string, string | boolean> = { ...current };

@@ -1,4 +1,5 @@
-import { KylmioUnitCounts } from './KylmioUnitCounts';
+import { CondenserConfigModule } from './CondenserConfigModule';
+import { EvaporatorCircuitCount } from './EvaporatorCircuitCount';
 import { isKylmioDevice } from '../../lib/huoltoRaportti/deviceKokoonpano';
 import { kylmioEvaporatorOhjausShared, evaporatorWithLegacyOhjaus } from '../../lib/huoltoRaportti/fieldModules';
 import { vakHasRefrigerant, vjHeatingTitle } from '../../lib/huoltoRaportti/deviceKokoonpano';
@@ -205,7 +206,7 @@ function MaintenanceReportDocumentViewInner({
               : maintenanceDocumentTheme(
                 entry.kind === 'evaporatorUnit'
                   ? 'hoyrystin'
-                  : entry.kind === 'condenserUnit'
+                  : entry.kind === 'condenserUnit' || entry.kind === 'condenserConfig'
                     ? 'lauhdutin'
                     : entry.kind === 'circuitMeasurementsUnit'
                       || entry.kind === 'circuitCompressorUnit'
@@ -233,6 +234,12 @@ function MaintenanceReportDocumentViewInner({
                   onChange={(data) => evaporatorActions.updateEvaporator(entry.unitIndex!, data)}
                   documentUnitKey={entry.tabId}
                   hidePartRow
+                />
+              ) : entry.kind === 'condenserConfig' ? (
+                <CondenserConfigModule
+                  form={form}
+                  onPatchForm={onPatchForm}
+                  onCondenserTypeChange={contentProps.onCondenserTypeChange}
                 />
               ) : entry.kind === 'condenserUnit' && entry.unitIndex != null ? (
                 <CondenserModule
@@ -350,7 +357,7 @@ function MaintenanceReportDocumentViewInner({
                 <MaintenanceReportDocumentTile
                   key={entry.key}
                   tabId={entry.tabId}
-                  title={entry.tabId === 'raportointi' ? 'Asiakas ja laite' : entry.tabId === 'kokoonpano' && isKylmioDevice(form.laiteTyyppi) ? 'Lauhdutustapa' : singleInStep ? 'Avaa ja täytä' : displayTitle}
+                  title={entry.tabId === 'raportointi' ? 'Asiakas ja laite' : singleInStep ? 'Avaa ja täytä' : displayTitle}
                   theme={theme}
                   form={form}
                   completion={completion}
@@ -385,15 +392,13 @@ function MaintenanceReportDocumentViewInner({
               </MaintenanceReportDocumentSection>
             );
             };
-            const isKok = (e: (typeof entries)[number]) => e.tabId === 'kokoonpano';
-            // Perustiedot: kokoonpano (lauhdutustapa) ensin, sitten kylmiön yksiköiden määrät (Lauhduttimia riippuu lauhdutustavasta), sitten laitetiedot.
+            const stepKey = steps[activeStep]?.key ?? '';
             return (
               <>
-                {entries.map((e, i) => (isKok(e) ? renderEntry(e, i) : null))}
-                {steps[activeStep]?.key === 'perustiedot' && isKylmioDevice(form.laiteTyyppi) ? (
-                  <KylmioUnitCounts form={form} onPatchForm={onPatchForm} />
+                {stepKey.startsWith('piiri:') && isKylmioDevice(form.laiteTyyppi) ? (
+                  <EvaporatorCircuitCount form={form} circuit={Number(stepKey.slice(6)) || 0} onPatchForm={onPatchForm} />
                 ) : null}
-                {entries.map((e, i) => (isKok(e) ? null : renderEntry(e, i)))}
+                {entries.map((e, i) => renderEntry(e, i))}
               </>
             );
           })()}

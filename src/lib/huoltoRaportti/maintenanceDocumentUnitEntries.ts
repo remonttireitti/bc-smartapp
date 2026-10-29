@@ -1,4 +1,5 @@
-import { getCondenserCount } from './evaporatorHelpers';
+import { getCondenserCount, kylmioEvaporatorTitle } from './evaporatorHelpers';
+import { isKylmioDevice, usesCondenserConfig } from './deviceKokoonpano';
 import { componentStatus } from './huoltoInspectionStatus';
 import { ilpDeviceModel, ilpDeviceSerial, isIlpDevice } from './ilpIdentity';
 import { isChillerLikeDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
@@ -50,6 +51,7 @@ export type MaintenanceDocumentEntryKind =
   | 'tab'
   | 'evaporatorUnit'
   | 'condenserUnit'
+  | 'condenserConfig'
   | 'circuitMeasurementsUnit'
   | 'circuitCompressorUnit'
   | 'circuitComponentsUnit'
@@ -94,7 +96,7 @@ export function buildMaintenanceDocumentEntries(
           key: `hoyrystin:${index}`,
           kind: 'evaporatorUnit',
           tabId: `hoyrystin:${index}`,
-          title: count === 1 ? tab.label : `${tab.label} ${index + 1}`,
+          title: isKylmioDevice(form.laiteTyyppi) ? kylmioEvaporatorTitle(form, index) : count === 1 ? tab.label : `${tab.label} ${index + 1}`,
           unitIndex: index,
         });
       }
@@ -158,7 +160,25 @@ export function buildMaintenanceDocumentEntries(
     });
   }
 
+  if (usesCondenserConfig(form)) insertCondenserConfigEntry(entries);
   return entries;
+}
+
+export const CONDENSER_CONFIG_TAB_ID = 'lauhdutinAsetukset';
+
+/** Lauhdutustapa (+ lauhduttimien määrä) on Lauhdutin-vaiheen ensimmäinen moduuli. */
+function insertCondenserConfigEntry(entries: MaintenanceDocumentEntry[]) {
+  const config: MaintenanceDocumentEntry = {
+    key: CONDENSER_CONFIG_TAB_ID,
+    kind: 'condenserConfig',
+    tabId: CONDENSER_CONFIG_TAB_ID,
+    title: 'Lauhdutustapa',
+  };
+  const at = entries.findIndex((e) =>
+    e.kind === 'condenserUnit' || e.tabId === 'lauhdutin' || e.tabId === 'lauhdutuspiiri' || e.tabId === 'nestelauhduttimet',
+  );
+  if (at >= 0) entries.splice(at, 0, config);
+  else entries.push(config);
 }
 
 function appendRefrigerantCircuitUnitEntries(entries: MaintenanceDocumentEntry[], form: HuoltoReportData) {
@@ -228,6 +248,9 @@ export function documentEntryCompletion(
   }
   if (entry.kind === 'condenserUnit' && entry.unitIndex != null) {
     return inspectionStatusToDocumentCompletion(componentStatus(form.condenserData[entry.unitIndex] ? condenserInspectionStatus(form.condenserData[entry.unitIndex]) : null));
+  }
+  if (entry.kind === 'condenserConfig') {
+    return form.lauhdutinTyyppiLaite?.trim() ? 'ok' : 'incomplete';
   }
   if (entry.kind === 'circuitMeasurementsUnit' && entry.unitIndex != null) {
     const circuit = getRefrigerantCircuitByIndex(form, entry.unitIndex);
