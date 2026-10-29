@@ -13,6 +13,7 @@ import { usePortalPreview } from '../hooks/usePortalPreview';
 import { useCompanyPartnershipsEnabled } from '../hooks/useCompanyPartnershipsEnabled';
 import { useAuthSession } from '../contexts/AuthSessionContext';
 import { useProfile } from '../hooks/useProfile';
+import { requestInstall, usePwaInstall } from '../lib/pwaInstall';
 
 interface Props {
   session: Session;
@@ -43,6 +44,7 @@ function readCollapsed(): boolean {
 
 export default function AppLayout({ session, children, noSidebar = false }: Props) {
   const { profile } = useProfile(session);
+  const { available: installAvailable } = usePwaInstall();
   const partnershipsEnabled = useCompanyPartnershipsEnabled(profile?.company_id, session);
   const portalPreview = usePortalPreview();
   const { signOut: authSignOut } = useAuthSession();
@@ -154,6 +156,20 @@ export default function AppLayout({ session, children, noSidebar = false }: Prop
                     </span>
                   </span>
                 </Link>
+                {installAvailable ? (
+                  <button
+                    type="button"
+                    className="app-sidebar-link"
+                    onClick={() => void requestInstall()}
+                    title="Asenna sovellus"
+                    data-testid="install-app-button"
+                  >
+                    <svg className="app-sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 4v10m0 0-4-4m4 4 4-4M5 19h14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span className="app-sidebar-label">Asenna sovellus</span>
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="app-sidebar-link app-sidebar-signout"

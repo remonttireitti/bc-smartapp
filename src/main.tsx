@@ -3,9 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
 import { registerPwa } from './lib/pwaRegister';
+import { initPwaInstall } from './lib/pwaInstall';
 import './index.css';
 
 registerPwa();
+initPwaInstall();
 
 const router = createBrowserRouter([{ path: '*', element: <App /> }]);
 
