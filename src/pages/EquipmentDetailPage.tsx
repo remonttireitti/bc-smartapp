@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
-import ToggleSwitch from '../components/ToggleSwitch';
 import DeviceQrPanel from '../components/equipment/DeviceQrPanel';
 import DeviceNotesPanel from '../components/equipment/DeviceNotesPanel';
 import DecommissionDialog from '../components/equipment/DecommissionDialog';
@@ -77,8 +76,6 @@ type EquipmentEditDraft = {
   installed_on: string;
   huoltovaliKk: string;
   gwp: string;
-  vuodonilmaisin: boolean;
-  hermeettinen: boolean;
 };
 
 function equipmentTitle(eq: Pick<Equipment, 'tag' | 'name'>): string {
@@ -103,8 +100,6 @@ function draftFromEquipment(eq: Equipment, f?: EquipmentDeviceFields | null): Eq
       return {
         huoltovaliKk: a.huoltovaliKk ? String(a.huoltovaliKk) : '',
         gwp: a.gwp != null ? String(a.gwp) : '',
-        vuodonilmaisin: Boolean(a.vuodonilmaisin),
-        hermeettinen: Boolean(a.hermeettinen),
       };
     })(),
   };
@@ -391,10 +386,10 @@ export default function EquipmentDetailPage({ session }: Props) {
           { clear: true },
         ),
         [HUOLTO_ASETUKSET_KEY]: {
+          // Vanhat tallennetut arvot (esim. vuodonilmaisin, hermeettinen) säilyvät koskemattomina; niitä ei enää käytetä.
+          ...(((equipment.huolto_technical_snapshot as Record<string, unknown> | null)?.[HUOLTO_ASETUKSET_KEY] as Record<string, unknown> | undefined) ?? {}),
           huoltovaliKk: parseInt(editDraft.huoltovaliKk, 10) > 0 ? parseInt(editDraft.huoltovaliKk, 10) : null,
           gwp: editDraft.gwp.trim() !== '' && Number.isFinite(Number(editDraft.gwp.replace(',', '.'))) ? Number(editDraft.gwp.replace(',', '.')) : null,
-          vuodonilmaisin: editDraft.vuodonilmaisin,
-          hermeettinen: editDraft.hermeettinen,
         },
       },
     };
@@ -640,27 +635,11 @@ export default function EquipmentDetailPage({ session }: Props) {
                 disabled={saveBusy}
               />
             </label>
-            <div className="equipment-toggle-row huolto-span-all">
-              <ToggleSwitch
-                label="Vuodonilmaisin"
-                checked={editDraft.vuodonilmaisin}
-                onChange={(on) => setEditDraft((prev) => (prev ? { ...prev, vuodonilmaisin: on } : prev))}
-                disabled={saveBusy}
-              />
-              <ToggleSwitch
-                label="Hermeettinen"
-                checked={editDraft.hermeettinen}
-                onChange={(on) => setEditDraft((prev) => (prev ? { ...prev, hermeettinen: on } : prev))}
-                disabled={saveBusy}
-              />
-            </div>
             {(() => {
               const lc = leakCheckInterval({
                 refrigerant: editDraft.refrigerant,
                 chargeKg: parseChargeKg(editDraft.refrigerant_charge_kg),
                 gwpOverride: editDraft.gwp.trim() ? Number(editDraft.gwp.replace(',', '.')) : null,
-                leakDetection: editDraft.vuodonilmaisin,
-                hermetic: editDraft.hermeettinen,
               });
               return (
                 <p className="muted huolto-span-all">

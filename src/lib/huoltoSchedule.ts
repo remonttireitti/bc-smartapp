@@ -67,8 +67,6 @@ export type LeakCheckInput = {
   refrigerant?: string | null;
   chargeKg?: number | null;
   gwpOverride?: number | null;
-  leakDetection?: boolean;
-  hermetic?: boolean;
 };
 
 export type LeakCheckResult = {
@@ -76,28 +74,25 @@ export type LeakCheckResult = {
   co2eTonnes: number | null;
   /** null = ei velvoitetta / ei laskettavissa. */
   intervalMonths: number | null;
-  reason: 'ok' | 'puuttuu' | 'alle-kynnyksen' | 'hermeettinen';
+  reason: 'ok' | 'puuttuu' | 'alle-kynnyksen';
 };
 
-/** Art. 5(1) ja 5(6): vuototarkastuksen vähimmäisväli kuukausina. */
+/** Art. 5(1): vuototarkastuksen väli kuukausina pelkästään CO₂e:stä (5/50/500 t → 12/6/3 kk). Vuodonilmaisin- ja hermeettisyysliput eivät vaikuta. */
 export function leakCheckInterval(input: LeakCheckInput): LeakCheckResult {
   const kg = input.chargeKg != null && Number.isFinite(input.chargeKg) ? Number(input.chargeKg) : null;
   const ref = normalizeRefrigerant(input.refrigerant);
   const gwp = input.gwpOverride != null && input.gwpOverride >= 0 ? input.gwpOverride : refrigerantGwp(ref);
   if (kg == null || kg <= 0 || gwp == null) return { gwp, co2eTonnes: null, intervalMonths: null, reason: 'puuttuu' };
   const co2eTonnes = (kg * gwp) / 1000;
-  const factor = input.leakDetection ? 2 : 1;
 
   if (ANNEX_II_SECTION_1.has(ref)) {
     if (kg < 1) return { gwp, co2eTonnes, intervalMonths: null, reason: 'alle-kynnyksen' };
-    if (input.hermetic && kg < 2) return { gwp, co2eTonnes, intervalMonths: null, reason: 'hermeettinen' };
     const base = kg < 10 ? 12 : kg < 100 ? 6 : 3;
-    return { gwp, co2eTonnes, intervalMonths: base * factor, reason: 'ok' };
+    return { gwp, co2eTonnes, intervalMonths: base, reason: 'ok' };
   }
   if (co2eTonnes < 5) return { gwp, co2eTonnes, intervalMonths: null, reason: 'alle-kynnyksen' };
-  if (input.hermetic && co2eTonnes < 10) return { gwp, co2eTonnes, intervalMonths: null, reason: 'hermeettinen' };
   const base = co2eTonnes < 50 ? 12 : co2eTonnes < 500 ? 6 : 3;
-  return { gwp, co2eTonnes, intervalMonths: base * factor, reason: 'ok' };
+  return { gwp, co2eTonnes, intervalMonths: base, reason: 'ok' };
 }
 
 /** Oletushuoltoväli laitetyypin mukaan (kk), muokattavissa laitekohtaisesti. */
@@ -115,8 +110,6 @@ export function defaultServiceIntervalMonths(deviceType: string | null | undefin
 export type HuoltoAsetukset = {
   huoltovaliKk?: number | null;
   gwp?: number | null;
-  vuodonilmaisin?: boolean;
-  hermeettinen?: boolean;
 };
 
 export const HUOLTO_ASETUKSET_KEY = 'huoltoAsetukset';
@@ -129,8 +122,6 @@ export function readHuoltoAsetukset(snapshot: unknown): HuoltoAsetukset {
   return {
     huoltovaliKk: num(r.huoltovaliKk),
     gwp: num(r.gwp),
-    vuodonilmaisin: r.vuodonilmaisin === true,
-    hermeettinen: r.hermeettinen === true,
   };
 }
 
@@ -230,8 +221,6 @@ export function buildDeviceSchedule(input: {
     refrigerant: input.refrigerant,
     chargeKg: input.chargeKg,
     gwpOverride: a.gwp ?? null,
-    leakDetection: a.vuodonilmaisin,
-    hermetic: a.hermeettinen,
   });
   const lastLeak = input.lastLeakCheckYmd?.slice(0, 10) || null;
   const leakDue = leakBase.intervalMonths ? dueState(lastLeak, leakBase.intervalMonths, input.todayYmd) : null;
