@@ -32,6 +32,8 @@ type Props = {
   onToggleSelected: (id: string, checked: boolean) => void;
   onPrintCard?: (eq: Equipment) => void;
   onPrintHistory?: (eq: Equipment) => void;
+  /** Tulosta QR-tarra (60×24 mm Dymo). */
+  onPrintQr?: (eq: Equipment) => void;
   onDelete: (eq: Equipment) => void;
   /** Poistetut laitteet -lista: ei tilamerkintöjä, ei huoltotoimintoja, vain palautus. */
   removedOn?: (eq: Equipment) => string | undefined;
@@ -98,6 +100,7 @@ export function CustomerEquipmentTable({
   onToggleSelected,
   onPrintCard,
   onPrintHistory,
+  onPrintQr,
   onDelete,
   removedOn,
   onDecommission,
@@ -292,6 +295,7 @@ export function CustomerEquipmentTable({
         const menu: RowActionMenuItem[] = [];
         if (onPrintCard) menu.push({ label: 'Tulosta laitekortti', onClick: () => onPrintCard(eq), disabled: printBusyId === `card:${eq.id}` });
         if (onPrintHistory) menu.push({ label: 'Tulosta huoltohistoria', onClick: () => onPrintHistory(eq), disabled: printBusyId === `history:${eq.id}` });
+        if (!removedMode && onPrintQr) menu.push({ label: 'Tulosta QR-tarra', onClick: () => onPrintQr(eq), disabled: busy });
         if (!removedMode && onDecommission) menu.push({ label: 'Poista käytöstä', onClick: () => onDecommission(eq), disabled: busy });
         if (canDelete) menu.push({ label: 'Poista', onClick: () => onDelete(eq), disabled: busy, danger: true });
         return (
