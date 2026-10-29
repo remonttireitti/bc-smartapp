@@ -75,6 +75,15 @@ assert.ok(/Kosteus ennen[\s\S]{0,80}Kosteus jälkeen/.test(text));
 assert.ok(/Sulatuskertoja[\s\S]{0,80}Sulatusaika/.test(text));
 assert.ok(/Imupaine[\s\S]{0,60}Imulämpötila/.test(text));
 
+// Höyrystimen Tulistus (K) ei tulostu (laskettu tulistus tulee kylmäainepiiristä)
+const withTulistus = buildG426Report(false) as unknown as Record<string, any>;
+withTulistus.evaporatorData[0].tulistus = '7';
+const tulHtml = visible(generateMaintenanceReportHtml(withTulistus as never, { companyName: 'X', imageUrls: {} }));
+const hyoIdx = tulHtml.indexOf('Höyrystin 1');
+const lauIdx = tulHtml.indexOf('Lauhdutin 1');
+assert.ok(hyoIdx >= 0 && lauIdx > hyoIdx);
+assert.ok(!/Tulistus/.test(tulHtml.slice(hyoIdx, lauIdx)), 'ei Tulistus-riviä höyrystimessä');
+
 // Muut tyypit rakentuvat ja käyttävät samaa kuorta (otsikkokaista, tilapillit, allekirjoituslohko)
 for (const ty of ['lämpöpumppu', 'vedenjäähdytyskone', 'mlp', 'vakioilmastointtikone', 'pakastin', 'konvektorit', 'kylmäkoneikko', 'muu']) {
   const h = generateMaintenanceReportHtml(buildTypeReport(ty), { companyName: 'Yritys Oy', imageUrls: {} });
