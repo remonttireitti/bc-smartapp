@@ -22,6 +22,8 @@ type FieldExtras = {
   requiredWhen?: (values: Record<string, string | boolean>, form: FieldModuleForm) => boolean;
   /** Vain vanhojen raporttien arvo: näytetään vain jos täytetty. */
   legacy?: boolean;
+  /** Lämpötilamittaus (ei asetus/hälytysraja): piilossa oletuksena, avataan "Lämpötilat mitattu" -kytkimellä. */
+  measured?: boolean;
 };
 export type FieldModuleField = FieldExtras & (
   | { id: string; label: string; type: 'text'; unit?: string; required?: boolean }
@@ -107,12 +109,12 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
     title: 'Mittaukset',
     isVisible: (form) => isKylmioDevice(form.laiteTyyppi),
     fields: [
-      { id: 'tilaLampo', label: 'Tilan lämpötila', type: 'text', unit: '°C', when: sharedOhjaus, requiredWhen: sharedOhjaus },
-      { id: 'konehuoneLampo', label: 'Konehuone / ulkolämpötila', type: 'text', unit: '°C' },
-      { id: 'hoyrystinIlmaSisaan', label: 'Höyrystin, ilma sisään', type: 'text', unit: '°C', legacy: true },
-      { id: 'hoyrystinIlmaUlos', label: 'Höyrystin, ilma ulos', type: 'text', unit: '°C', legacy: true },
-      { id: 'lauhdutinSisaan', label: 'Lauhdutin, ilma/neste sisään', type: 'text', unit: '°C', legacy: true },
-      { id: 'lauhdutinUlos', label: 'Lauhdutin, ilma/neste ulos', type: 'text', unit: '°C', legacy: true },
+      { id: 'tilaLampo', label: 'Tilan lämpötila', type: 'text', unit: '°C', when: sharedOhjaus, measured: true },
+      { id: 'konehuoneLampo', label: 'Konehuone / ulkolämpötila', type: 'text', unit: '°C', measured: true },
+      { id: 'hoyrystinIlmaSisaan', measured: true, label: 'Höyrystin, ilma sisään', type: 'text', unit: '°C', legacy: true },
+      { id: 'hoyrystinIlmaUlos', measured: true, label: 'Höyrystin, ilma ulos', type: 'text', unit: '°C', legacy: true },
+      { id: 'lauhdutinSisaan', measured: true, label: 'Lauhdutin, ilma/neste sisään', type: 'text', unit: '°C', legacy: true },
+      { id: 'lauhdutinUlos', measured: true, label: 'Lauhdutin, ilma/neste ulos', type: 'text', unit: '°C', legacy: true },
     ],
   },
   {
@@ -121,8 +123,8 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
     isVisible: (form) => vjHeatingEnabled(form),
     fields: [
       { id: 'asetusarvo', label: 'Lämmityksen asetusarvo', type: 'text', unit: '°C' },
-      { id: 'meno', label: 'Menovesi lämmityksessä', type: 'text', unit: '°C' },
-      { id: 'paluu', label: 'Paluuvesi lämmityksessä', type: 'text', unit: '°C' },
+      { id: 'meno', label: 'Menovesi lämmityksessä', type: 'text', unit: '°C', measured: true },
+      { id: 'paluu', label: 'Paluuvesi lämmityksessä', type: 'text', unit: '°C', measured: true },
       { id: 'vaihtoventtiili', label: 'Vaihtoventtiili (4-tie)', type: 'select', options: KUNTO, required: true },
       { id: 'sulatus', label: 'Sulatus', type: 'select', options: KUNTO_EI_OLE },
       { id: 'huomio', label: 'Huomiot', type: 'textarea' },
@@ -137,8 +139,8 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
         || form.laiteKokoonpano?.mlpJaahdytys === 'aktiivinen_erillinen'),
     fields: [
       { id: 'asetusarvo', label: 'Jäähdytyksen asetusarvo', type: 'text', unit: '°C' },
-      { id: 'meno', label: 'Menovesi jäähdytyksessä', type: 'text', unit: '°C' },
-      { id: 'paluu', label: 'Paluuvesi jäähdytyksessä', type: 'text', unit: '°C' },
+      { id: 'meno', label: 'Menovesi jäähdytyksessä', type: 'text', unit: '°C', measured: true },
+      { id: 'paluu', label: 'Paluuvesi jäähdytyksessä', type: 'text', unit: '°C', measured: true },
       { id: 'vaihtoventtiilit', label: 'Vaihtoventtiilit', type: 'select', options: KUNTO, required: true },
       { id: 'kastepiste', label: 'Kastepistevahti', type: 'select', options: KUNTO_EI_OLE },
       { id: 'huomio', label: 'Huomiot', type: 'textarea' },

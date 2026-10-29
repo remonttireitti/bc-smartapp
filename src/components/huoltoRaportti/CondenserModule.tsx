@@ -8,6 +8,7 @@ import {
 } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
 import { EvaporatorPuhaltimetFields } from './EvaporatorPuhaltimetFields';
 import { FormCheckbox } from './FormCheckbox';
+import { hasAnyValue, TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell } from './HuoltoInspectionDialogShell';
@@ -30,6 +31,12 @@ interface Props {
 export function CondenserModule({ index, titleLabel, data, onChange, documentUnitKey, hidePartRow = false, deviceCondenserType }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(data);
+  const temp = useTempMeasured(
+    hasAnyValue(
+      data.lauhtumisLampotila, data.ilmaTuloLampotila, data.ilmaPoistoLampotila, data.alijaahtyminen,
+      data.ilmaTuloRh, data.ilmaPoistoRh, data.ilmavirtaM3h,
+    ),
+  );
   const status = condenserInspectionStatus(data);
   const typeFromDevice = (deviceCondenserType ?? '').trim() as LauhdutinType | '';
   const effectiveType = typeFromDevice || data.tyyppi || '';
@@ -243,6 +250,8 @@ export function CondenserModule({ index, titleLabel, data, onChange, documentUni
         </div>
         <div className="huolto-submodule">
           <h4>Mittaukset</h4>
+          <TempMeasuredToggle on={temp.on} onChange={temp.setOn} />
+          {temp.show ? (
           <div className="line-form-grid">
             <FormInput label="Lauhtuminen (°C)" type="number" value={source.lauhtumisLampotila || ''} onChange={(v) => set({ lauhtumisLampotila: v })} />
             <FormInput label={liquidType ? 'Neste sisään (°C)' : 'Ilma ennen (°C)'} type="number" value={source.ilmaTuloLampotila || ''} onChange={(v) => set({ ilmaTuloLampotila: v })} />
@@ -257,6 +266,7 @@ export function CondenserModule({ index, titleLabel, data, onChange, documentUni
               </>
             ) : null}
           </div>
+          ) : null}
         </div>
 
         {sourceStatus === 'faulty' ? (

@@ -7,6 +7,7 @@ import {
 } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
 import { getMlpPumpSyottoValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
 import { FormCheckbox } from './FormCheckbox';
+import { hasAnyValue, TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
@@ -55,6 +56,7 @@ export function MlpLatauspiiriInspection({
   const showDetails = draftStatus === 'ok' || draftStatus === 'faulty';
   const draftPower =
     calcPower(draft.latausVirtaus, draft.latausMeno, draft.latausTulo, parseFloat(draft.latausNeste) || 0) ?? latausPower;
+  const temp = useTempMeasured(hasAnyValue(draft.latausMeno, draft.latausTulo, draft.latausTulistusMeno, draft.latausTulistusTulo));
   const patchDraft = (patch: Partial<MlpData>) => setDraft((prev) => ({ ...prev, ...patch }));
 
   useRegisterHuoltoModuleDialog(documentUnitKey, openDialog);
@@ -113,8 +115,9 @@ export function MlpLatauspiiriInspection({
             ) : null}
             <div className="line-form-grid">
               <FormInput label="Virtaus (l/s)" value={draft.latausVirtaus} onChange={(v) => patchDraft({ latausVirtaus: v })} type="number" />
-              <FormInput label="Meno (°C)" value={draft.latausMeno} onChange={(v) => patchDraft({ latausMeno: v })} type="number" />
-              <FormInput label="Tulo (°C)" value={draft.latausTulo} onChange={(v) => patchDraft({ latausTulo: v })} type="number" />
+              <TempMeasuredToggle on={temp.on} onChange={temp.setOn} className="huolto-span-all" />
+              {temp.show ? (<FormInput label="Meno (°C)" value={draft.latausMeno} onChange={(v) => patchDraft({ latausMeno: v })} type="number" />) : null}
+              {temp.show ? (<FormInput label="Tulo (°C)" value={draft.latausTulo} onChange={(v) => patchDraft({ latausTulo: v })} type="number" />) : null}
               <label>
                 Neste
                 <select
@@ -167,8 +170,8 @@ export function MlpLatauspiiriInspection({
                     </select>
                   </label>
                   <FormInput label="Virtaus (l/s)" value={draft.latausTulistusVirtaus} onChange={(v) => patchDraft({ latausTulistusVirtaus: v })} type="number" />
-                  <FormInput label="Meno (°C)" value={draft.latausTulistusMeno} onChange={(v) => patchDraft({ latausTulistusMeno: v })} type="number" />
-                  <FormInput label="Tulo (°C)" value={draft.latausTulistusTulo} onChange={(v) => patchDraft({ latausTulistusTulo: v })} type="number" />
+                  {temp.show ? (<FormInput label="Meno (°C)" value={draft.latausTulistusMeno} onChange={(v) => patchDraft({ latausTulistusMeno: v })} type="number" />) : null}
+                  {temp.show ? (<FormInput label="Tulo (°C)" value={draft.latausTulistusTulo} onChange={(v) => patchDraft({ latausTulistusTulo: v })} type="number" />) : null}
                 </div>
               </div>
             ) : null}

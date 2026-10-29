@@ -2,6 +2,7 @@ import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { type FieldModuleField, fieldModuleDisplayValue, fieldModuleFieldArchived, fieldModuleFieldRequired, fieldModuleFieldVisible, fieldModuleValues, findFieldModule } from '../../lib/huoltoRaportti/fieldModules';
 import { getPressureFromSaturationTemp, getSaturationTempFromPressure, hasRefrigerantPtData } from '../../lib/huoltoRaportti/refrigerantPt';
 import { FormInput } from './FormInput';
+import { TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 
 type Props = {
   moduleId: string;
@@ -12,8 +13,10 @@ type Props = {
 /** Kokoonpanon mukainen kenttämoduuli (ohjaukset, kostutus, kuivaus, …). */
 export function FieldModuleSection({ moduleId, form, onPatchForm }: Props) {
   const def = findFieldModule(moduleId);
+  const values = def ? fieldModuleValues(form, moduleId) : {};
+  const measuredFields = (def?.fields ?? []).filter((f) => f.measured && fieldModuleFieldVisible(f, values, form));
+  const temp = useTempMeasured(measuredFields.some((f) => String(values[f.id] ?? '').trim() !== ''));
   if (!def) return null;
-  const values = fieldModuleValues(form, moduleId);
   const patchMany = (next: Record<string, string>) =>
     onPatchForm({
       kenttaModuulit: {
@@ -33,6 +36,11 @@ export function FieldModuleSection({ moduleId, form, onPatchForm }: Props) {
         const heading = field.section && field.section !== shown[i - 1]?.section
           ? <h4 key={`h-${field.section}`} className="huolto-span-all huolto-field-module-heading">{field.section}</h4>
           : null;
+        if (field.measured) {
+          const first = measuredFields[0]?.id === field.id;
+          const toggle = first ? <TempMeasuredToggle key={`tm-${moduleId}`} on={temp.on} onChange={temp.setOn} /> : null;
+          return [heading, toggle, temp.show ? renderField(field, required) : null];
+        }
         return [heading, renderField(field, required)];
       })}
       {archived.length > 0 && (

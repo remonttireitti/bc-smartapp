@@ -7,6 +7,7 @@ import {
 } from '../../lib/huoltoRaportti/huoltoInspectionStatus';
 import { getMlpPumpSyottoValinta } from '../../lib/huoltoRaportti/sahkoVaiheUtils';
 import { FormCheckbox } from './FormCheckbox';
+import { hasAnyValue, TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 import { FormInput } from './FormInput';
 import { HuoltoPartInspectionRow } from './HuoltoPartInspectionRow';
 import { HuoltoInspectionDialogShell, useHuoltoInspectionDialog } from './HuoltoInspectionDialogShell';
@@ -59,6 +60,7 @@ export function MlpKeruupiiriInspection({
     calcPower(draft.keruupiiriVirtaus, draft.keruupiiriMeno, draft.keruupiiriTulo, parseFloat(draft.keruupiiriNeste) || 0) ??
     keruuPower;
 
+  const temp = useTempMeasured(hasAnyValue(draft.keruupiiriMeno, draft.keruupiiriTulo));
   const patchDraft = (patch: Partial<MlpData>) => setDraft((prev) => ({ ...prev, ...patch }));
 
   useRegisterHuoltoModuleDialog(documentUnitKey, openDialog);
@@ -132,8 +134,9 @@ export function MlpKeruupiiriInspection({
             ) : null}
             <div className="line-form-grid">
               <FormInput label="Virtaus (l/s)" value={draft.keruupiiriVirtaus} onChange={(v) => patchDraft({ keruupiiriVirtaus: v })} type="number" />
-              <FormInput label="Meno (°C)" value={draft.keruupiiriMeno} onChange={(v) => patchDraft({ keruupiiriMeno: v })} type="number" />
-              <FormInput label="Tulo (°C)" value={draft.keruupiiriTulo} onChange={(v) => patchDraft({ keruupiiriTulo: v })} type="number" />
+              <TempMeasuredToggle on={temp.on} onChange={temp.setOn} className="huolto-span-all" />
+              {temp.show ? (<FormInput label="Meno (°C)" value={draft.keruupiiriMeno} onChange={(v) => patchDraft({ keruupiiriMeno: v })} type="number" />) : null}
+              {temp.show ? (<FormInput label="Tulo (°C)" value={draft.keruupiiriTulo} onChange={(v) => patchDraft({ keruupiiriTulo: v })} type="number" />) : null}
               <label>
                 Neste
                 <select value={draft.keruupiiriNeste} onChange={(e) => patchDraft({ keruupiiriNeste: e.target.value })}>
