@@ -364,7 +364,6 @@ function renderSingleEvaporatorHtml(
     pair(['Kosteus ennen', ev.ilmaTuloRh, '%'], ['Kosteus jälkeen', ev.ilmaPoistoRh, '%']),
     pair(['Ilmavirta', ev.ilmavirtaM3h, 'm³/h'], ['Huoneen lämpötila', staattinen ? evaporatorRoomTemp(ev) : ev.kylmioLampotila, '°C']),
     pair(['Kennon lämpötila', ev.kennoLampotila, '°C'], ['Höyrystyminen', ev.hoyrystymisLampotila, '°C']),
-    ev.paisuntaventtiiliKaytossa !== false ? pair(['Tulistus', ev.tulistus, 'K'], ['', '']) : '',
     evapCapacityRow(ev),
   ]);
 
