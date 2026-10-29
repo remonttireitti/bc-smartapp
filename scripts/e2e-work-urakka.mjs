@@ -56,6 +56,10 @@ await urakkaSw.click(); await p.waitForTimeout(400);
 const priceLabel = p.locator('label', { hasText: 'Urakkahinta (€, alv 0 %)' }).first();
 checks['Urakkahinta-kenttä näkyy'] = (await priceLabel.count()) > 0;
 const priceInput = priceLabel.locator('input');
+const hoursSw = p.getByRole('switch', { name: 'Laskutettava (tunnit)' });
+checks['tunnit: Laskutettava näkyy urakassa, oletus pois'] = (await hoursSw.count()) === 1 && (await hoursSw.getAttribute('aria-checked')) === 'false';
+await hoursSw.click(); await p.waitForTimeout(200);
+checks['tunnit: Laskutettava päälle'] = (await hoursSw.getAttribute('aria-checked')) === 'true';
 await priceInput.fill('3000');
 const box = await priceInput.evaluate((el) => ({ h: el.getBoundingClientRect().height, fs: getComputedStyle(el).fontSize }));
 console.log('box', JSON.stringify(box)); checks['kenttä 48 px / 16 px'] = Math.round(box.h) === 48 && box.fs === '16px';
@@ -63,6 +67,7 @@ await p.getByRole('button', { name: 'Tallenna muutokset' }).click(); await p.wai
 const patch1 = writes.find((w) => w.path === 'work_report_daily_logs' && w.method === 'PATCH');
 console.log('patch1', JSON.stringify(patch1?.body)?.slice(0, 400));
 checks['tallennus: fixed_price + hinta'] = patch1?.body?.entry_type === 'fixed_price' && Number(patch1?.body?.customer_fixed_price_amount) === 3000 && Number(patch1?.body?.fixed_price_amount) === 2700;
+checks['tallennus: hours_row_billed'] = patch1?.body?.partner_billing?.hours_row_billed === true;
 checks['tallennus: urakka_all_in'] = patch1?.body?.partner_billing?.urakka_all_in === true;
 // 2) Urakkakirjauksen kulurivit: Laskutettava oletuksena pois, päälle → tallentuu urakka_billed.
 writes.length = 0;
@@ -75,6 +80,9 @@ checks['rivillä Laskutettava'] = (await rowSw.count()) === 2;
 checks['Laskutettava oletuksena pois'] = (await rowSw.first().getAttribute('aria-checked')) === 'false';
 await rowSw.nth(1).click(); await p.waitForTimeout(300);
 checks['Laskutettava päälle'] = (await rowSw.nth(1).getAttribute('aria-checked')) === 'true';
+await p.getByRole('button', { name: 'Muokkaa' }).nth(1).click(); await p.waitForTimeout(500);
+checks['rivin muokkausikkunassa Laskutettava'] = (await rowSw.count()) === 3;
+await p.getByRole('button', { name: 'Valmis' }).click(); await p.waitForTimeout(300);
 await p.getByRole('button', { name: /^Tallenna/ }).click(); await p.waitForTimeout(1200);
 const flagsWrite = writes.find((w) => w.path === 'work_report_daily_logs' && w.body?.customer_extra_billing?.supply_line_flags);
 console.log('flags', JSON.stringify(flagsWrite?.body?.customer_extra_billing?.supply_line_flags));
@@ -83,6 +91,9 @@ checks['tallennus: urakka_billed vain 2. riville'] = Array.isArray(f) && f.lengt
 // 3) Takuu-kirjaus: rivillä Laskutettava (takuun ulkopuolinen) → pois päältä = takuu.
 writes.length = 0;
 await p.goto(`${BASE}/tyoraportit/${rid}`); await p.waitForTimeout(4000);
+await p.locator('.work-report-entry-tile', { hasText: 'Takuukäynti' }).first().click(); await p.waitForTimeout(800);
+checks['takuu: tunnit Laskutettava näkyy, oletus pois'] = (await p.getByRole('switch', { name: 'Laskutettava (tunnit)' }).count()) === 1 && (await p.getByRole('switch', { name: 'Laskutettava (tunnit)' }).getAttribute('aria-checked')) === 'false';
+await p.getByRole('button', { name: 'Peruuta' }).click(); await p.waitForTimeout(400);
 await p.locator('.work-report-entry-tile', { hasText: 'Venttiili' }).first().click(); await p.waitForTimeout(800);
 const wSw = p.getByRole('switch', { name: 'Laskutettava' });
 checks['takuu: rivillä Laskutettava'] = (await wSw.count()) === 1;

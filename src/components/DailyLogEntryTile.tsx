@@ -85,9 +85,9 @@ export function buildDailyLogEntryTiles(
     title: dateLabel,
     subtitle: workSubtitleParts.join(' · '),
     ...(parseDailyLogPartnerBilling(log.partner_billing).warranty === true
-      ? { marker: 'takuu' }
+      ? { marker: parseDailyLogPartnerBilling(log.partner_billing).hours_row_billed === true ? 'takuu · tunnit laskutetaan' : 'takuu' }
       : log.entry_type === 'fixed_price' && parseDailyLogPartnerBilling(log.partner_billing).urakka_all_in === true
-      ? { marker: 'urakka' }
+      ? { marker: parseDailyLogPartnerBilling(log.partner_billing).hours_row_billed === true ? 'urakka · tunnit lisälaskutus' : 'urakka' }
       : parseDailyLogPartnerBilling(log.partner_billing).extra_billing === true
       ? { marker: 'lisälaskutus' }
       : options.partnerBilling?.commissionOnly
