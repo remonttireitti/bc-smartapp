@@ -34,6 +34,11 @@ type Props = {
   onPrintCard?: (eq: Equipment) => void;
   onPrintHistory?: (eq: Equipment) => void;
   onDelete: (eq: Equipment) => void;
+  /** Poistetut laitteet -lista: ei tilamerkintöjä, ei huoltotoimintoja, vain palautus. */
+  removedOn?: (eq: Equipment) => string | undefined;
+  /** Käytöstä poisto / palautus (näkyy vain kun tietokantasarake on olemassa ja käyttäjällä oikeus). */
+  onDecommission?: (eq: Equipment) => void;
+  onRestore?: (eq: Equipment) => void;
 };
 
 /** Laitetyypin ryhmä suodatinta varten (kylmiö + pakastin yhdessä). */
@@ -95,7 +100,11 @@ export function CustomerEquipmentTable({
   onPrintCard,
   onPrintHistory,
   onDelete,
+  removedOn,
+  onDecommission,
+  onRestore,
 }: Props) {
+  const removedMode = Boolean(removedOn);
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('nimi');
   const [typeFilter, setTypeFilter] = useState('');
@@ -147,7 +156,7 @@ export function CustomerEquipmentTable({
   }, [equipment, query, typeFilter, sortKey, deviceFields, latestMaintenance, schedule]);
 
   const counts = useMemo(() => {
-    if (!schedule) return null;
+    if (!schedule || removedMode) return null;
     let due = 0;
     let done = 0;
     for (const eq of equipment) {
@@ -157,7 +166,7 @@ export function CustomerEquipmentTable({
       else if (sc.needsService) due++;
     }
     return { due, done };
-  }, [equipment, schedule]);
+  }, [equipment, schedule, removedMode]);
 
   const columns: DataTableColumn<Equipment>[] = [
     {
@@ -166,7 +175,7 @@ export function CustomerEquipmentTable({
       value: (eq) => eq.name,
       render: (eq) => (
         <span className="customer-equipment-name-cell">
-          {selectable ? <label className="customer-equipment-row-select" onClick={(e) => e.stopPropagation()}>
+          {selectable && !removedMode ? <label className="customer-equipment-row-select" onClick={(e) => e.stopPropagation()}>
             <CheckToggle
               checked={selectedIds.has(eq.id)}
               onChange={(e) => onToggleSelected(eq.id, e.target.checked)}
@@ -179,6 +188,7 @@ export function CustomerEquipmentTable({
           </span>
           {eq.is_onboarding_demo ? <span className="badge badge-demo">Esimerkki</span> : null}
           {(() => {
+            if (removedMode) return null;
             const sc = schedule?.(eq);
             return sc ? <ScheduleChips s={sc} /> : null;
           })()}
@@ -201,6 +211,18 @@ export function CustomerEquipmentTable({
     },
     { key: 'refrigerant', label: 'Kylmäaine', value: (eq) => (deviceFields ? formatRefrigerant(deviceFields(eq)) : ''), className: 'nowrap' },
     { key: 'location', label: 'Sijainti', value: (eq) => eq.location ?? '' },
+    ...(removedMode
+      ? [{
+          key: 'removed',
+          label: 'Poistettu',
+          value: (eq: Equipment) => removedOn?.(eq) ?? '',
+          render: (eq: Equipment) => {
+            const d = removedOn?.(eq);
+            return d ? formatMaintenanceDateFi(d) : '—';
+          },
+          className: 'nowrap',
+        } as DataTableColumn<Equipment>]
+      : []),
     {
       key: 'latest',
       label: 'Viimeisin huolto',
@@ -211,7 +233,7 @@ export function CustomerEquipmentTable({
   ];
 
   return (
-    <div className="customer-equipment-list">
+    <div className={`customer-equipment-list${removedMode ? ' customer-removed-list' : ''}`}>
     {counts && equipment.length > 0 ? (
       <p className="customer-equipment-counts">
         {counts.due} huollettavaa · {counts.done} huollettu
@@ -231,12 +253,12 @@ export function CustomerEquipmentTable({
         <option value="huolto_vanhin">Huolto: vanhin</option>
         <option value="huolto_uusin">Huolto: uusin</option>
         <option value="sijainti">Sijainti</option>
-        {schedule ? <option value="erääntyvät">Erääntyvät ensin</option> : null}
+        {schedule && !removedMode ? <option value="erääntyvät">Erääntyvät ensin</option> : null}
       </select>
-      {typeOptions.length > 1 || schedule ? (
+      {typeOptions.length > 1 || (schedule && !removedMode) ? (
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="Laitetyyppi">
           <option value="">Kaikki</option>
-          {schedule ? <option value="huollettavat">Huollettavat</option> : null}
+          {schedule && !removedMode ? <option value="huollettavat">Huollettavat</option> : null}
           {typeOptions.map((o) => (
             <option key={o.key} value={o.key}>{o.label}</option>
           ))}
@@ -277,7 +299,7 @@ export function CustomerEquipmentTable({
               <HistoryIcon />
             </button>
           </Tooltip> : null}
-          {canWrite ? (
+          {canWrite && !removedMode ? (
             <Link
               to={`/huoltoraportit/uusi?customerId=${customerId}&equipmentId=${eq.id}`}
               className="btn btn-secondary btn-sm"
@@ -285,6 +307,16 @@ export function CustomerEquipmentTable({
             >
               Uusi huolto
             </Link>
+          ) : null}
+          {removedMode && onRestore ? (
+            <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onRestore(eq)}>
+              Palauta käyttöön
+            </button>
+          ) : null}
+          {!removedMode && onDecommission ? (
+            <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onDecommission(eq)}>
+              Poista käytöstä
+            </button>
           ) : null}
           {canDelete ? (
             <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => onDelete(eq)}>

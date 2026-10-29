@@ -3,6 +3,9 @@ import { useCompanyHuoltoSettings } from '../hooks/useCompanyHuoltoSettings';
 import ToggleSwitch from '../components/ToggleSwitch';
 import DeviceQrPanel from '../components/equipment/DeviceQrPanel';
 import DeviceNotesPanel from '../components/equipment/DeviceNotesPanel';
+import DecommissionDialog from '../components/equipment/DecommissionDialog';
+import { loadDecommissionedByIds, setEquipmentDecommissioned } from '../lib/equipmentDecommission';
+import { emitDataChanged } from '../lib/dataRefresh';
 import {
   latestSharedYmd,
   listEquipmentLinks,
@@ -134,6 +137,12 @@ export default function EquipmentDetailPage({ session }: Props) {
   /** null = sarakkeita ei vielä ole (migraatio ajamatta) → näytetään tilannekuvasta vain luku. */
   const [deviceColumns, setDeviceColumns] = useState<EquipmentDeviceFields | null>(null);
   const [deviceColumnsSupported, setDeviceColumnsSupported] = useState(false);
+  /** Poistopäivä (ymd) tai null = käytössä. decommissionSupported=false → sarake puuttuu (SQL ajamatta). */
+  const [decommissionedOn, setDecommissionedOn] = useState<string | null>(null);
+  const [decommissionSupported, setDecommissionSupported] = useState(false);
+  const [decommissionOpen, setDecommissionOpen] = useState(false);
+  const [decommissionBusy, setDecommissionBusy] = useState(false);
+  const [decommissionError, setDecommissionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (customerId && equipmentId) void load();
@@ -208,6 +217,9 @@ export default function EquipmentDetailPage({ session }: Props) {
     const fieldMap = await loadEquipmentDeviceFields(supabase, [equipmentRow.id]);
     setDeviceColumnsSupported(fieldMap !== null);
     setDeviceColumns(fieldMap?.get(equipmentRow.id) ?? null);
+    const decomMap = await loadDecommissionedByIds(supabase, [equipmentRow.id]);
+    setDecommissionSupported(decomMap !== null);
+    setDecommissionedOn(decomMap?.get(equipmentRow.id) ?? null);
     setCanWrite(
       canEditCustomersAsStaff(profile, customerRow.owner_company_id, profile?.company_id, partnershipRows),
     );
@@ -283,6 +295,25 @@ export default function EquipmentDetailPage({ session }: Props) {
       logoUrl = null;
     }
     return { companyName: row?.name?.trim() || customer?.name || '—', logoUrl };
+  }
+
+  async function changeDecommission(ymd: string | null) {
+    if (!equipment) return;
+    setDecommissionBusy(true);
+    setDecommissionError(null);
+    try {
+      await setEquipmentDecommissioned(supabase, equipment.id, ymd);
+    } catch (e) {
+      setDecommissionBusy(false);
+      setDecommissionError(e instanceof Error ? e.message : 'Tallennus epäonnistui.');
+      if (ymd === null) setError(e instanceof Error ? e.message : 'Palautus epäonnistui.');
+      return;
+    }
+    setDecommissionBusy(false);
+    setDecommissionOpen(false);
+    setDecommissionedOn(ymd);
+    setSaveMessage(ymd ? 'Laite poistettu käytöstä.' : 'Laite palautettu käyttöön.');
+    emitDataChanged();
   }
 
   async function printEquipmentCard() {
@@ -432,8 +463,19 @@ export default function EquipmentDetailPage({ session }: Props) {
     return <Navigate to="/laitteet" replace />;
   }
 
+  const canDecommission = decommissionSupported && !portalMode && canWrite
+    && (customer.owner_company_id === profile?.company_id || profile?.is_global_admin === true);
+
   return (
     <AppLayout session={session}>
+      <DecommissionDialog
+        open={decommissionOpen}
+        deviceName={title}
+        busy={decommissionBusy}
+        error={decommissionError}
+        onConfirm={(ymd) => void changeDecommission(ymd)}
+        onCancel={() => setDecommissionOpen(false)}
+      />
       <div className="page-header">
         <div>
           <p className="breadcrumb">
@@ -471,7 +513,7 @@ export default function EquipmentDetailPage({ session }: Props) {
               <HistoryIcon />
             </button>
           </Tooltip>
-          {!portalMode && huolto.loaded && huolto.access.moduleEnabled && (
+          {!portalMode && !decommissionedOn && huolto.loaded && huolto.access.moduleEnabled && (
             <Link
               to={newHuoltoReportHrefForDevice(huolto.access, equipment.device_type, `customerId=${customer.id}&equipmentId=${equipment.id}`)}
               className="btn btn-primary"
@@ -703,6 +745,15 @@ export default function EquipmentDetailPage({ session }: Props) {
                 <dt>Asennuspäivä</dt>
                 <dd>{shownFields.installed_on ? new Date(shownFields.installed_on).toLocaleDateString('fi-FI') : '—'}</dd>
               </div>
+              {decommissionedOn ? (
+                <div>
+                  <dt>Tila</dt>
+                  <dd data-testid="decommissioned-status">
+                    <span className="device-removed-badge">Poistettu käytöstä</span> {formatMaintenanceDateFi(decommissionedOn)}
+                  </dd>
+                </div>
+              ) : null}
+              {!decommissionedOn ? (
               <div>
                 <dt>Huolto</dt>
                 <dd>
@@ -712,6 +763,8 @@ export default function EquipmentDetailPage({ session }: Props) {
                   <span data-testid="service-status">{serviceStatusText(schedule.service, todayYmdLocal()).label}</span>
                 </dd>
               </div>
+              ) : null}
+              {!decommissionedOn ? (
               <div>
                 <dt>Vuototarkastus</dt>
                 <dd>
@@ -723,6 +776,7 @@ export default function EquipmentDetailPage({ session }: Props) {
                   {schedule.combineHint ? <small className="muted"> · tee huollon yhteydessä</small> : null}
                 </dd>
               </div>
+              ) : null}
               <div>
                 <dt>Huomiot</dt>
                 <dd>{equipment.notes || '—'}</dd>
@@ -733,6 +787,23 @@ export default function EquipmentDetailPage({ session }: Props) {
                 <button type="button" className="btn btn-secondary btn-sm" onClick={openInfoEdit}>
                   Muokkaa
                 </button>
+                {canDecommission && decommissionedOn ? (
+                  <button type="button" className="btn btn-secondary btn-sm" disabled={decommissionBusy} onClick={() => void changeDecommission(null)}>
+                    Palauta käyttöön
+                  </button>
+                ) : null}
+                {canDecommission && !decommissionedOn ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setDecommissionError(null);
+                      setDecommissionOpen(true);
+                    }}
+                  >
+                    Poista käytöstä
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </>
