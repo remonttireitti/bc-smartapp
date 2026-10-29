@@ -1,6 +1,6 @@
 import CheckToggle from '../CheckToggle';
 import { errorMessage } from '../../lib/errorMessage';
-import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { IconScan } from '../icons';
@@ -36,6 +36,7 @@ import {
 } from '../../lib/refrigerantInventoryHistory';
 import { openSimplePrintPlaceholder } from '../../lib/openPrintWindow';
 import { resolveCylinderFromScan } from '../../lib/refrigerantCylinderCode';
+import { copyCylinderScanUrl } from '../../lib/refrigerantCylinderQr';
 import { loadWarehouseCustomerPicker, type WarehouseCustomerPickerOption } from '../../lib/customers';
 import RefrigerantBottleScanDialog from './RefrigerantBottleScanDialog';
 import { supabase } from '../../lib/supabase';
@@ -346,6 +347,15 @@ export default function RefrigerantInventorySection({
     setView('registry');
   }, []);
 
+  const copyCylinderLink = useCallback(
+    (cylinder: RefrigerantCylinder) => {
+      void copyCylinderScanUrl(cylinder)
+        .then((url) => onMessage(`Linkki kopioitu: ${url}`))
+        .catch(() => onError('Linkin kopiointi epäonnistui'));
+    },
+    [onMessage, onError],
+  );
+
   const openCylinderQr = useCallback((cylinder: RefrigerantCylinder) => {
     setQrCylinder(cylinder);
     setView('registry');
@@ -376,8 +386,12 @@ export default function RefrigerantInventorySection({
     }
   }
 
+  // Haettu linkki avataan kerran per koodi (URL:ia ei tyhjennetä: välimuistissa oleva näkymä pysyy samana).
+  const handledOpenRef = useRef<string | null>(null);
   useEffect(() => {
     if (!openCylinderId || !warehouseCompanyId || loading) return;
+    if (handledOpenRef.current === openCylinderId) return;
+    handledOpenRef.current = openCylinderId;
     const local = cylinders.find((c) => c.id === openCylinderId);
     if (local) {
       openCylinderDetails(local);
@@ -1017,6 +1031,7 @@ export default function RefrigerantInventorySection({
                           onPickPhoto={(file) => void uploadBottlePhoto(c, file)}
                           onShowDetails={() => openCylinderDetails(c)}
                           onShowQr={() => openCylinderQr(c)}
+                          onCopyLink={() => copyCylinderLink(c)}
                           onEdit={() => openEdit(c)}
                           onRetrieve={() => {
                             setRetrieveBottleId(c.id);
@@ -1222,6 +1237,7 @@ export default function RefrigerantInventorySection({
         busy={scanBusy}
         onClose={() => setDetailCylinder(null)}
         onError={onError}
+        onMessage={onMessage}
         onEdit={
           detailCylinder
             ? () => {

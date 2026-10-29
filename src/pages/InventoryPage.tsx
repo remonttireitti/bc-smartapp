@@ -47,7 +47,7 @@ function writeStoredWarehouseCompanyId(myCompanyId: string, warehouseCompanyId: 
 
 export default function InventoryPage({ session }: Props) {
   const { profile } = useProfile(session);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const myCompanyId = profile?.company_id ?? '';
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
   const [warehouseCompanyId, setWarehouseCompanyId] = useState('');
@@ -347,7 +347,6 @@ export default function InventoryPage({ session }: Props) {
           warehouseCompanyName={activeWarehouseLabel}
           canEditWarehouse={canEditWarehouse}
           openCylinderId={openCylinderId}
-          onOpenCylinderHandled={() => setSearchParams({}, { replace: true })}
           onMessage={setMessage}
           onError={setError}
         />

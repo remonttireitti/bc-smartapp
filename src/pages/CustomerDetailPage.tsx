@@ -64,7 +64,8 @@ import {
 } from '../lib/customerDocuments';
 import { useProfile } from '../hooks/useProfile';
 import { loadEquipmentNotes, type EquipmentNote } from '../lib/equipmentNotes';
-import { fetchDeviceQrTokens, generateDeviceQrToken, setDeviceQrToken } from '../lib/devicePublicCard';
+import { devicePublicUrl, ensureDeviceQrCode, fetchDeviceQrTokens } from '../lib/devicePublicCard';
+import { copyText } from '../lib/copyText';
 import { buildDeviceQrLabelsHtml } from '../lib/deviceQrLabel';
 import LinkSuggestionsReview from '../components/equipment/LinkSuggestionsReview';
 import DecommissionDialog from '../components/equipment/DecommissionDialog';
@@ -488,39 +489,53 @@ export default function CustomerDetailPage({ session }: Props) {
     await printQrLabelsFor(activeEquipment.filter((eq) => selectedEquipmentIds.has(eq.id)));
   }
 
-  async function printQrLabelsFor(list: Equipment[]) {
-    if (list.length === 0) return;
-    setError(null);
+  /** Hae laitteiden QR-koodit; puuttuvalle luodaan lyhyt koodi automaattisesti (vain kirjoitusoikeudella). null = virhe (viesti asetettu). */
+  async function resolveQrCodes(list: Equipment[]): Promise<Record<string, string> | null> {
     const tokens = await fetchDeviceQrTokens(list.map((eq) => eq.id));
     if (!tokens) {
       setError('QR-tarrat vaativat tietokantapäivityksen.');
-      return;
+      return null;
     }
     const missing = list.filter((eq) => !tokens[eq.id]);
     if (missing.length > 0) {
       if (!canWrite) {
-        setError('Osalla laitteista ei ole QR-linkkiä.');
-        return;
+        setError(missing.length === 1 ? 'Laitteella ei ole QR-linkkiä.' : 'Osalla laitteista ei ole QR-linkkiä.');
+        return null;
       }
-      const confirmText = missing.length === 1
-        ? 'Laitteelle luodaan julkinen huoltopöytäkirjalinkki. Jatketaanko?'
-        : `${missing.length} laitteelle luodaan julkinen huoltopöytäkirjalinkki. Jatketaanko?`;
-      if (!window.confirm(confirmText)) return;
+      if (missing.length > 1 && !window.confirm(`${missing.length} laitteelle luodaan julkinen huoltopöytäkirjalinkki. Jatketaanko?`)) return null;
       try {
-        for (const eq of missing) {
-          const token = generateDeviceQrToken();
-          await setDeviceQrToken(eq.id, token);
-          tokens[eq.id] = token;
-        }
+        for (const eq of missing) tokens[eq.id] = await ensureDeviceQrCode(eq.id, tokens[eq.id]);
       } catch {
         setError('QR-linkin luonti epäonnistui.');
-        return;
+        return null;
       }
     }
+    return tokens as Record<string, string>;
+  }
+
+  async function printQrLabelsFor(list: Equipment[]) {
+    if (list.length === 0) return;
+    setError(null);
+    const tokens = await resolveQrCodes(list);
+    if (!tokens) return;
     const html = await buildDeviceQrLabelsHtml(
-      list.map((eq) => ({ token: tokens[eq.id] as string, name: eq.name, tag: eq.tag })),
+      list.map((eq) => ({ token: tokens[eq.id], name: eq.name, tag: eq.tag })),
     );
-    openPrintHtml(html, { documentTitle: 'QR-tarrat' });
+    openPrintHtml(html, { documentTitle: list.length === 1 ? 'QR-tarra' : 'QR-tarrat' });
+  }
+
+  async function copyQrLinkFor(eq: Equipment) {
+    setError(null);
+    setMessage(null);
+    const tokens = await resolveQrCodes([eq]);
+    if (!tokens) return;
+    const url = devicePublicUrl(tokens[eq.id]);
+    try {
+      await copyText(url);
+      setMessage(`Linkki kopioitu: ${url}`);
+    } catch {
+      setError(`Kopiointi epäonnistui. Linkki: ${url}`);
+    }
   }
 
   async function printMaintenanceHistoryForEquipmentList(mode: 'all' | 'selected') {
@@ -1170,6 +1185,7 @@ export default function CustomerDetailPage({ session }: Props) {
               onPrintCard={(eq) => void printEquipmentCard(eq)}
               onPrintHistory={(eq) => void printEquipmentHistory(eq)}
               onPrintQr={portalView ? undefined : (eq) => void printQrLabelsFor([eq])}
+              onCopyQr={portalView ? undefined : (eq) => void copyQrLinkFor(eq)}
               onDelete={(eq) => void deleteEquipmentItem(eq.id, eq.name)}
               onDecommission={decommissioned && canDecommission ? (eq) => {
                 setDecommissionError(null);

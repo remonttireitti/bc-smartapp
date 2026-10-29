@@ -1,7 +1,9 @@
 import QRCode from 'qrcode';
 
 import { formatBottleLabel } from './refrigerantBottle';
-import { buildCylinderScanUrl } from './refrigerantCylinderCode';
+import { buildCylinderShortUrl } from './refrigerantCylinderCode';
+import { copyText } from './copyText';
+import { buildDeviceQrLabelsHtml, renderDeviceQrLabelPdf, renderDeviceQrLabelPng, downloadBlob, deviceQrLabelFileName } from './deviceQrLabel';
 import type { RefrigerantCylinder } from '../types/inventory';
 
 export type CylinderQrContent = {
@@ -11,7 +13,7 @@ export type CylinderQrContent = {
 };
 
 export async function buildCylinderQrContent(cylinder: RefrigerantCylinder): Promise<CylinderQrContent> {
-  const scanUrl = buildCylinderScanUrl(cylinder.id);
+  const scanUrl = buildCylinderShortUrl(cylinder.id);
   const qrDataUrl = await QRCode.toDataURL(scanUrl, {
     width: 512,
     margin: 1,
@@ -33,9 +35,31 @@ export function downloadQrPng(qrDataUrl: string, filename: string) {
 }
 
 export async function copyCylinderScanUrl(cylinder: RefrigerantCylinder): Promise<string> {
-  const url = buildCylinderScanUrl(cylinder.id);
-  await navigator.clipboard.writeText(url);
+  const url = buildCylinderShortUrl(cylinder.id);
+  await copyText(url);
   return url;
+}
+
+export const CYLINDER_LABEL_TAGLINE = 'Kylmäainepullo – BC Smartapp';
+
+/** Dymo XTL 300 -tarra (60 × 24 mm), sama asettelu kuin laitteen QR-tarra. */
+export function cylinderLabelItem(cylinder: RefrigerantCylinder) {
+  return {
+    url: buildCylinderShortUrl(cylinder.id),
+    name: formatBottleLabel(cylinder),
+    tag: null,
+    tagline: CYLINDER_LABEL_TAGLINE,
+  };
+}
+
+export async function buildCylinderLabelHtml(cylinder: RefrigerantCylinder): Promise<string> {
+  return buildDeviceQrLabelsHtml([cylinderLabelItem(cylinder)]);
+}
+
+export async function downloadCylinderLabel(cylinder: RefrigerantCylinder, kind: 'png' | 'pdf') {
+  const item = cylinderLabelItem(cylinder);
+  const blob = kind === 'png' ? await renderDeviceQrLabelPng(item) : await renderDeviceQrLabelPdf(item);
+  downloadBlob(blob, deviceQrLabelFileName(item, kind));
 }
 
 function sanitizeFilename(value: string) {

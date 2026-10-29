@@ -11,6 +11,7 @@ import {
   tempMonitoringDevicePath,
   tempMonitoringReportPrintPath,
 } from '../lib/remoteMonitoringRoutes';
+import CylinderShortLinkPage from '../pages/CylinderShortLinkPage';
 import CustomerDetailPage from '../pages/CustomerDetailPage';
 import EquipmentDetailPage from '../pages/EquipmentDetailPage';
 import CustomersPage from '../pages/CustomersPage';
@@ -193,6 +194,7 @@ export function buildAuthenticatedRoutes(session: Session): RouteObject[] {
     { path: '/global-admin', element: <LegacyServiceRedirect /> },
     { path: '/tyoraportit', element: <LicensedWorkReportsPage session={session} /> },
     { path: '/laskutus', element: <LicensedBillingPage session={session} /> },
+    { path: '/p/:code', element: <CylinderShortLinkPage /> },
     { path: '/varasto', element: <LicensedInventoryPage session={session} /> },
     { path: '/etaseuranta', element: <LicensedRemoteMonitoringHubPage session={session} /> },
     { path: '/etaseuranta/luku', element: <MonitorReaderHubPage session={session} /> },
