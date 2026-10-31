@@ -1,5 +1,5 @@
 import type { MlpData } from '../../lib/huoltoRaportti/types';
-import { mlpNestOptions } from '../../lib/huoltoRaportti/constants';
+import { isMlpVesiNeste, mlpNestOptions } from '../../lib/huoltoRaportti/constants';
 import {
   mlpKeruupiiriInspectionStatus,
   normalizeHuoltoInspectionStatus,
@@ -91,20 +91,22 @@ export function MlpKeruupiiriInspection({
                 checked={draft.keruupiirinPaineTarkastettu}
                 onChange={(v) => patchDraft({ keruupiirinPaineTarkastettu: v, ...(v ? {} : { keruupiiriPaineBar: '' }) })}
               />
-              <FormCheckbox label="Mutasihti puhdistettu" checked={draft.keruupiirissaMutapussiPuhdistettu} onChange={(v) => patchDraft({ keruupiirissaMutapussiPuhdistettu: v })} />
+              <FormCheckbox label="Suodatin puhdistettu" checked={draft.keruupiirissaMutapussiPuhdistettu} onChange={(v) => patchDraft({ keruupiirissaMutapussiPuhdistettu: v })} />
               <FormCheckbox label="Pumppu tarkastettu" checked={draft.keruupiirinPumppuTarkastettu} onChange={(v) => patchDraft({ keruupiirinPumppuTarkastettu: v })} />
               <FormCheckbox label="Eristeet kunnossa" checked={draft.keruupiirinEristeetKunnossa} onChange={(v) => patchDraft({ keruupiirinEristeetKunnossa: v })} />
               <FormCheckbox label="Automaattinen ilmaus tarkistettu" checked={draft.keruupiirissaAutomaattinenIlmausTarkistettu} onChange={(v) => patchDraft({ keruupiirissaAutomaattinenIlmausTarkistettu: v })} />
               <FormCheckbox label="Paisunta-astia tarkastettu" checked={draft.keruuPaisuntaAstiaTarkistettu} onChange={(v) => patchDraft({ keruuPaisuntaAstiaTarkistettu: v })} />
             </div>
             {draft.keruupiirinPaineTarkastettu ? (
-              <FormInput label="Mitattu paine (bar)" value={draft.keruupiiriPaineBar} onChange={(v) => patchDraft({ keruupiiriPaineBar: v })} type="number" />
+              <FormInput label="Piirin paine (bar)" value={draft.keruupiiriPaineBar} onChange={(v) => patchDraft({ keruupiiriPaineBar: v })} type="number" />
             ) : null}
             {draft.keruupiirinPumppuTarkastettu ? (
               <>
                 <div className="line-form-grid">
                   <FormInput label="Pumpun valmistaja" value={draft.keruupiiriPumpunValmistaja} onChange={(v) => patchDraft({ keruupiiriPumpunValmistaja: v })} />
                   <FormInput label="Pumpun malli" value={draft.keruupiiriPumpunMalli} onChange={(v) => patchDraft({ keruupiiriPumpunMalli: v })} />
+                  <FormInput label="Nopeus / asetus" value={draft.keruuPumppuNopeus} onChange={(v) => patchDraft({ keruuPumppuNopeus: v })} />
+                  <FormCheckbox label="Pumppu kunnossa" checked={draft.keruuPumppuKunnossa} onChange={(v) => patchDraft({ keruuPumppuKunnossa: v })} />
                 </div>
                 <PumpSupplyMeasurementBlock
                   syottoValinta={getMlpPumpSyottoValinta(draft.keruupiiriPumpunSyottoValinta, draft.keruupiiriPumppuKolmeVaihetta)}
@@ -128,7 +130,7 @@ export function MlpKeruupiiriInspection({
             ) : null}
             {draft.keruuPaisuntaAstiaTarkistettu ? (
               <div className="line-form-grid">
-                <FormInput label="Paisunta-astia koko" value={draft.keruuPaisuntaAstiaKoko} onChange={(v) => patchDraft({ keruuPaisuntaAstiaKoko: v })} className="huolto-span-all" />
+                <FormInput label="Paisunta-astian koko (l)" value={draft.keruuPaisuntaAstiaKoko} onChange={(v) => patchDraft({ keruuPaisuntaAstiaKoko: v })} className="huolto-span-all" />
                 <FormInput label="Esipaine (bar)" value={draft.keruuPaisuntaAstiaEsipaine} onChange={(v) => patchDraft({ keruuPaisuntaAstiaEsipaine: v })} type="number" />
               </div>
             ) : null}
@@ -136,7 +138,7 @@ export function MlpKeruupiiriInspection({
               <FormInput label="Virtaus (l/s)" value={draft.keruupiiriVirtaus} onChange={(v) => patchDraft({ keruupiiriVirtaus: v })} type="number" />
               <TempMeasuredToggle on={temp.on} onChange={temp.setOn} className="huolto-span-all" />
               {temp.show ? (<FormInput label="Meno (°C)" value={draft.keruupiiriMeno} onChange={(v) => patchDraft({ keruupiiriMeno: v })} type="number" />) : null}
-              {temp.show ? (<FormInput label="Tulo (°C)" value={draft.keruupiiriTulo} onChange={(v) => patchDraft({ keruupiiriTulo: v })} type="number" />) : null}
+              {temp.show ? (<FormInput label="Paluu (°C)" value={draft.keruupiiriTulo} onChange={(v) => patchDraft({ keruupiiriTulo: v })} type="number" />) : null}
               <label>
                 Neste
                 <select value={draft.keruupiiriNeste} onChange={(e) => patchDraft({ keruupiiriNeste: e.target.value })}>
@@ -146,6 +148,12 @@ export function MlpKeruupiiriInspection({
                 </select>
               </label>
             </div>
+            {draft.keruupiiriNeste !== '' && !isMlpVesiNeste(draft.keruupiiriNeste) ? (
+              <div className="line-form-grid">
+                <FormInput label="Nesteen pitoisuus (%)" value={draft.keruuNestePitoisuus} onChange={(v) => patchDraft({ keruuNestePitoisuus: v })} type="number" />
+                <FormInput label="Jäätymispiste (°C)" value={draft.keruuJaatymispiste} onChange={(v) => patchDraft({ keruuJaatymispiste: v })} type="number" />
+              </div>
+            ) : null}
             {draftKeruuPower ? (
               <div className="huolto-alert huolto-alert-success">Keruupiirin teho: {draftKeruuPower} kW</div>
             ) : null}

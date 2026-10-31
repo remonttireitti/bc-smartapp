@@ -24,7 +24,7 @@ function imbalanceWarning(l1: string | undefined, l2: string | undefined, l3: st
 }
 
 /** L1 | L2 | L3 -virrat riveinä (pareittain) + epätasapainovaroitus. */
-function phaseCurrentRows(l1: string | undefined, l2: string | undefined, l3: string | undefined): string {
+export function phaseCurrentRows(l1: string | undefined, l2: string | undefined, l3: string | undefined): string {
   const p1 = hasPrintableValue(l1);
   const p2 = hasPrintableValue(l2);
   const p3 = hasPrintableValue(l3);

@@ -546,6 +546,12 @@ export interface MlpData {
   keruuPaisuntaAstiaTarkistettu: boolean;
   keruuPaisuntaAstiaKoko: string;
   keruuPaisuntaAstiaEsipaine: string;
+  /** Kiertovesipumpun nopeus / asetus (esim. "Auto", "3", "70 %"). */
+  keruuPumppuNopeus: string;
+  keruuPumppuKunnossa: boolean;
+  /** Keruunesteen pitoisuus (%) ja jäätymispiste (°C). */
+  keruuNestePitoisuus: string;
+  keruuJaatymispiste: string;
   keruuJaahdytysPiiri: boolean;
   keruuJaahdytysPiiriPumppu: boolean;
   keruuJaahdytysPumppuTyyppi: string;
@@ -583,6 +589,10 @@ export interface MlpData {
   latausPaisuntaAstiaTarkistettu: boolean;
   latausPaisuntaAstiaKoko: string;
   latausPaisuntaAstiaEsipaine: string;
+  latausVaroventtiiliTarkastettu: boolean;
+  latausPumppuNopeus: string;
+  latausPumppuKunnossa: boolean;
+  latausVaihtoventtiiliToimii: boolean;
   latausTulistuspiiri: boolean;
   latausTulistuspiiriPumppu: boolean;
   latausTulistusPumppuTyyppi: string;
@@ -604,6 +614,17 @@ export interface MlpData {
   kayttovesiTilavuus: string;
   kayttovesiLampotilaAsetus: string;
   kayttovesiLampotilaNykyinen: string;
+  kayttovesiVaraajaTyyppi: string;
+  /** Integroidun lisävastuksen teho (kW) ja toiminta. */
+  kayttovesiLisavastusTeho: string;
+  kayttovesiLisavastusToimii: boolean;
+  kayttovesiVaroventtiiliTarkastettu: boolean;
+  kayttovesiSekoitusventtiiliToimii: boolean;
+  kayttovesiLegionellaKaytossa: boolean;
+  kayttovesiLegionellaLampotila: string;
+  kayttovesiLegionellaAjastus: string;
+  kayttovesiAnodiTarkastettu: boolean;
+  kayttovesiAnodiHuomio: string;
   kayttovesiSahkoVastuksetEnabled: boolean;
   kayttovesiSahkoVastuksetSijainti: KayttovesiLisalammitinSijainti;
   kayttovesiSahkoVastuksetMaara: string;
