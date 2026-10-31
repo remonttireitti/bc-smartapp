@@ -97,7 +97,7 @@ export function MlpLampopiiritInspection({
             <div className="checkbox-grid huolto-toggle-grid">
               <FormCheckbox label="Toimilaitteet testattu" checked={draft.lampoToimilaitteetOK} onChange={(v) => patchDraft({ lampoToimilaitteetOK: v })} />
               <FormCheckbox label="Automaattinen ilmanpoisto testattu" checked={draft.lampoAutomaattinenIlmausTarkistettu} onChange={(v) => patchDraft({ lampoAutomaattinenIlmausTarkistettu: v })} />
-              <FormCheckbox label="Mutasihti puhdistettu" checked={draft.lampoMutapussiPuhdistettu} onChange={(v) => patchDraft({ lampoMutapussiPuhdistettu: v })} />
+              <FormCheckbox label="Suodatin puhdistettu" checked={draft.lampoMutapussiPuhdistettu} onChange={(v) => patchDraft({ lampoMutapussiPuhdistettu: v })} />
               <FormCheckbox label="Paisunta-astia esipaine tarkistettu" checked={draft.lampoPaisuntaAstiaTarkistettu} onChange={(v) => patchDraft({ lampoPaisuntaAstiaTarkistettu: v })} />
             </div>
             {draft.lampoPaisuntaAstiaTarkistettu ? (

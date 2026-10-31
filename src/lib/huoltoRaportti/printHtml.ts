@@ -74,7 +74,7 @@ import { fiDate, fiNumber, normalizePrintHtml } from './printFormat';
 function deviceTypeLabel(t: string): string {
   return (deviceTypes as ReadonlyArray<{ value: string; label: string }>).find((d) => d.value === t)?.label ?? t;
 }
-import { generateMlpFullPrintHtml } from './printMlpFull';
+import { renderMlpPrintSections } from './printMlp';
 import { renderCompressorCurrentHtml, renderFanPhaseCardHtml } from './printPhaseHelpers';
 import {
   calculateSubcoolingFromMeasurements,
@@ -881,7 +881,7 @@ export function generateMaintenanceReportHtml(
   ${renderJaahdytysvesi(data)}
   ${renderVapaajahdytys(data)}
   ${renderChillerEnergy(data)}
-  <div class="legacy">${generateMlpFullPrintHtml(data)}</div>
+  ${renderMlpPrintSections(data, box)}
   ${renderKonvektoritTable(data)}
   ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTiiveyskoe(data, imageUrls) : ''}
   ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTyhjiointi(data, imageUrls) : ''}

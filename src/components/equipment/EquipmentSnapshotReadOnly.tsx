@@ -15,6 +15,7 @@ import {
   refrigerantCircuitHasMagnetValve,
   huoltoTechnicalSnapshotShowsEvaporatorHeading,
   kompressoriSnapshotRowMeaningful,
+  mlpSnapshotRowText,
   mlpSnapshotSectionHasContent,
   nestelauhdutinRegistryUnitIsMeaningful,
   nonEmpty,
@@ -334,7 +335,7 @@ export default function EquipmentSnapshotReadOnly({ snapshot, sections, hideSect
                   const value =
                     String(key).includes('SyottoValinta') || String(key).includes('PumpunSyottoValinta')
                       ? formatPumpSyottoReadout(raw)
-                      : snapVal(raw);
+                      : mlpSnapshotRowText(key, raw);
                   return <OptionalRow key={key} label={label} value={value} />;
                 })}
                 {m.kiinteistoPiiritSisallytetaan === false ? (

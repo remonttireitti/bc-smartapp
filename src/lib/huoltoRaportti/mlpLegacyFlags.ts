@@ -19,7 +19,8 @@ export function inferLegacyMlpFlags(m: Partial<MlpData>): Partial<MlpData> {
       m.keruupiirinPumpunTyyppi,
       m.keruupiiriPumppuVirta1vaihe,
       m.keruupiiriPumppuVirtaL1,
-    )
+      m.keruuPumppuNopeus,
+    ) || m.keruuPumppuKunnossa === true
   ) {
     patch.keruupiirinPumppuTarkastettu = true;
   }
@@ -36,7 +37,8 @@ export function inferLegacyMlpFlags(m: Partial<MlpData>): Partial<MlpData> {
       m.latausPumpunMalli,
       m.latausPumppuVirta1vaihe,
       m.latausPumppuVirtaL1,
-    )
+      m.latausPumppuNopeus,
+    ) || m.latausPumppuKunnossa === true
   ) {
     patch.latausPumppuTarkastettu = true;
   }
@@ -45,7 +47,7 @@ export function inferLegacyMlpFlags(m: Partial<MlpData>): Partial<MlpData> {
   }
   if (
     !m.kayttovesiEnabled &&
-    hasText(m.kayttovesiTilavuus, m.kayttovesiLampotilaAsetus, m.kayttovesiLampotilaNykyinen)
+    hasText(m.kayttovesiTilavuus, m.kayttovesiLampotilaAsetus, m.kayttovesiLampotilaNykyinen, m.kayttovesiVaraajaTyyppi, m.kayttovesiLisavastusTeho, m.kayttovesiLegionellaLampotila)
   ) {
     patch.kayttovesiEnabled = true;
   }

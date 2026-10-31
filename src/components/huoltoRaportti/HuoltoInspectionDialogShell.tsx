@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
+import { HuoltoModulePresentationProvider } from './HuoltoModulePresentationContext';
 
 interface Props {
   open: boolean;
@@ -54,7 +55,8 @@ export function HuoltoInspectionDialogShell({
         onClick={(event) => event.stopPropagation()}
       >
         <h2 id={titleId}>{title}</h2>
-        {children}
+        {/* Dialogi on aina muokkaus: dokumenttinäkymän 'flat'-tila piilottaisi pois päältä olevat kytkimet. */}
+        <HuoltoModulePresentationProvider value="accordion">{children}</HuoltoModulePresentationProvider>
         <div className="leave-draft-actions konvektori-dialog-actions">
           <button type="button" className="btn btn-primary" onClick={onClose}>
             Sulje

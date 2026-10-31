@@ -1,3 +1,4 @@
+import { kayttovesiVaraajaTyyppiOptions } from './constants';
 import { refrigerantCircuitHasMagnetValve } from './deviceModuleLogic';
 import type { CondenserData, EquipmentSnapshot, NestelauhdutinUnitData } from './types';
 
@@ -29,6 +30,7 @@ export const MLP_LAITEKORTTI_ROWS: { key: string; label: string }[] = [
   { key: 'keruupiirinPumpunTyyppi', label: 'Keruupiiri · pumpun tyyppi (vanha)' },
   { key: 'keruupiiriPumpunSyottoValinta', label: 'Keruupiiri · pumpun syöttö' },
   { key: 'keruupiiriNeste', label: 'Keruupiiri · neste' },
+  { key: 'keruuNestePitoisuus', label: 'Keruupiiri · nesteen pitoisuus (%)' },
   { key: 'keruuPaisuntaAstiaKoko', label: 'Keruu · paisunta-astia (l)' },
   { key: 'keruuPaisuntaAstiaEsipaine', label: 'Keruu · paisunta-astian esipaine (bar)' },
   { key: 'keruuJaahdytysPumpunValmistaja', label: 'Erill. keruu/jäähdytyspiiri · pumpun valmistaja' },
@@ -49,6 +51,10 @@ export const MLP_LAITEKORTTI_ROWS: { key: string; label: string }[] = [
   { key: 'latausTulistusNeste', label: 'Tulistus · neste' },
   { key: 'kayttovesiTilavuus', label: 'Käyttövesivaraaja · tilavuus' },
   { key: 'kayttovesiLampotilaAsetus', label: 'Käyttövesi · lämpötila-asetus' },
+  { key: 'kayttovesiVaraajaTyyppi', label: 'Käyttövesivaraaja · tyyppi' },
+  { key: 'kayttovesiLisavastusTeho', label: 'Käyttövesi · lisävastus (kW)' },
+  { key: 'kayttovesiLegionellaLampotila', label: 'Käyttövesi · legionella (°C)' },
+  { key: 'kayttovesiLegionellaAjastus', label: 'Käyttövesi · legionella-ajastus' },
   { key: 'kayttovesiKiertoPumpunValmistaja', label: 'Käyttövesikierto · pumpun valmistaja' },
   { key: 'kayttovesiKiertoPumpunMalli', label: 'Käyttövesikierto · pumpun malli' },
   { key: 'kayttovesiKiertoPumppuTyyppi', label: 'Käyttövesikierto · pumpun tyyppi (vanha)' },
@@ -67,6 +73,15 @@ export function parseEquipmentSnapshot(raw: unknown): ParsedEquipmentSnapshot | 
 
 export function nonEmpty(value: unknown): boolean {
   return String(value ?? '').trim().length > 0;
+}
+
+/** MLP-laitekortin rivin teksti: koodiarvot (varaajan tyyppi) selitteeksi. */
+export function mlpSnapshotRowText(key: string, raw: unknown): string | undefined {
+  const v = snapVal(raw);
+  if (v && key === 'kayttovesiVaraajaTyyppi') {
+    return kayttovesiVaraajaTyyppiOptions.find((o) => o.value === v)?.label ?? v;
+  }
+  return v;
 }
 
 export function snapVal(value: unknown): string | undefined {

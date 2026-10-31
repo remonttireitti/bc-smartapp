@@ -241,6 +241,16 @@ export const sisayksikkoTyyppiOptions = [
   { value: 'kanavoitava', label: 'Kanavoitava' },
 ];
 
+/** Käyttövesivaraajan tyyppi. */
+export const kayttovesiVaraajaTyyppiOptions = [
+  { value: '', label: 'Valitse...' },
+  { value: 'kayttovesivaraaja', label: 'Käyttövesivaraaja' },
+  { value: 'kaksoisvaraaja', label: 'Kaksoisvaraaja (lämmitys + käyttövesi)' },
+  { value: 'tankki_tankissa', label: 'Tankki tankissa' },
+  { value: 'kierukkavaraaja', label: 'Kierukkavaraaja' },
+  { value: 'lamminvesivaraaja_muu', label: 'Muu varaaja' },
+] as const;
+
 /** Lämpöpiirin nesteen ominaislämpö (c) – vesi = 4.18 */
 export const MLP_VESI_NESTE_CP = '4.18';
 

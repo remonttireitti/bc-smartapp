@@ -1,5 +1,5 @@
 import type { MlpData } from '../../lib/huoltoRaportti/types';
-import { kayttovesiLisalammitinSijaintiOptions } from '../../lib/huoltoRaportti/constants';
+import { kayttovesiLisalammitinSijaintiOptions, kayttovesiVaraajaTyyppiOptions } from '../../lib/huoltoRaportti/constants';
 import { createEmptyHeatingElementData } from '../../lib/huoltoRaportti/defaults';
 import { FormCheckbox } from './FormCheckbox';
 import { hasAnyValue, TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
@@ -31,12 +31,43 @@ export function MlpKayttovesiForm({
       {draft.kayttovesiEnabled ? (
         <div className="huolto-form-stack">
           <div className="line-form-grid">
-            <FormInput label="Tilavuus (l)" value={draft.kayttovesiTilavuus} onChange={(v) => patchDraft({ kayttovesiTilavuus: v })} />
-            <FormInput label="Lämpötila-asetus (°C)" value={draft.kayttovesiLampotilaAsetus} onChange={(v) => patchDraft({ kayttovesiLampotilaAsetus: v })} />
+            <FormInput label="Varaajan koko (l)" value={draft.kayttovesiTilavuus} onChange={(v) => patchDraft({ kayttovesiTilavuus: v })} />
+            <FormInput label="Käyttöveden asetus (°C)" value={draft.kayttovesiLampotilaAsetus} onChange={(v) => patchDraft({ kayttovesiLampotilaAsetus: v })} />
             <TempMeasuredToggle on={temp.on} onChange={temp.setOn} className="huolto-span-all" />
-            {temp.show ? (<FormInput label="Nykyinen lämpötila (°C)" value={draft.kayttovesiLampotilaNykyinen} onChange={(v) => patchDraft({ kayttovesiLampotilaNykyinen: v })} />) : null}
-            <FormCheckbox label="Toimilaitteet OK" checked={draft.kayttovesiToimilaitteetOK} onChange={(v) => patchDraft({ kayttovesiToimilaitteetOK: v })} />
+            {temp.show ? (<FormInput label="Käyttöveden lämpötila (°C)" value={draft.kayttovesiLampotilaNykyinen} onChange={(v) => patchDraft({ kayttovesiLampotilaNykyinen: v })} />) : null}
+            <label>
+              Varaajan tyyppi
+              <select value={draft.kayttovesiVaraajaTyyppi} onChange={(e) => patchDraft({ kayttovesiVaraajaTyyppi: e.target.value })}>
+                {kayttovesiVaraajaTyyppiOptions.map((o) => (
+                  <option key={o.value || 'empty'} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
           </div>
+          <div className="checkbox-grid huolto-toggle-grid">
+            <FormCheckbox label="Toimilaitteet OK" checked={draft.kayttovesiToimilaitteetOK} onChange={(v) => patchDraft({ kayttovesiToimilaitteetOK: v })} />
+            <FormCheckbox label="Varoventtiili tarkastettu" checked={draft.kayttovesiVaroventtiiliTarkastettu} onChange={(v) => patchDraft({ kayttovesiVaroventtiiliTarkastettu: v })} />
+            <FormCheckbox label="Sekoitusventtiilin toiminta OK" checked={draft.kayttovesiSekoitusventtiiliToimii} onChange={(v) => patchDraft({ kayttovesiSekoitusventtiiliToimii: v })} />
+            <FormCheckbox
+              label="Legionella-asetus käytössä"
+              checked={draft.kayttovesiLegionellaKaytossa}
+              onChange={(v) => patchDraft({ kayttovesiLegionellaKaytossa: v, ...(v ? {} : { kayttovesiLegionellaLampotila: '', kayttovesiLegionellaAjastus: '' }) })}
+            />
+            <FormCheckbox
+              label="Anodi tarkastettu"
+              checked={draft.kayttovesiAnodiTarkastettu}
+              onChange={(v) => patchDraft({ kayttovesiAnodiTarkastettu: v, ...(v ? {} : { kayttovesiAnodiHuomio: '' }) })}
+            />
+          </div>
+          {draft.kayttovesiLegionellaKaytossa ? (
+            <div className="line-form-grid">
+              <FormInput label="Legionella-lämpötila (°C)" value={draft.kayttovesiLegionellaLampotila} onChange={(v) => patchDraft({ kayttovesiLegionellaLampotila: v })} type="number" />
+              <FormInput label="Legionella-ajastus" value={draft.kayttovesiLegionellaAjastus} onChange={(v) => patchDraft({ kayttovesiLegionellaAjastus: v })} placeholder="esim. su 03:00" />
+            </div>
+          ) : null}
+          {draft.kayttovesiAnodiTarkastettu ? (
+            <FormInput label="Anodin kunto" value={draft.kayttovesiAnodiHuomio} onChange={(v) => patchDraft({ kayttovesiAnodiHuomio: v })} />
+          ) : null}
           <FormCheckbox
             label="Lisälämmittin (sähkövastukset)"
             checked={draft.kayttovesiSahkoVastuksetEnabled}
@@ -49,6 +80,8 @@ export function MlpKayttovesiForm({
                       kayttovesiSahkoVastuksetSijainti: '',
                       kayttovesiSahkoVastuksetMaara: '',
                       kayttovesiSahkoVastukset: [],
+                      kayttovesiLisavastusTeho: '',
+                      kayttovesiLisavastusToimii: false,
                     }),
               })
             }
@@ -89,7 +122,10 @@ export function MlpKayttovesiForm({
                 </select>
               </label>
               {draft.kayttovesiSahkoVastuksetSijainti === 'integroitu' ? (
-                <p className="muted">Lisälämmittin on integroitu laitteeseen.</p>
+                <div className="line-form-grid">
+                  <FormInput label="Lisävastuksen teho (kW)" value={draft.kayttovesiLisavastusTeho} onChange={(v) => patchDraft({ kayttovesiLisavastusTeho: v })} type="number" />
+                  <FormCheckbox label="Lisävastuksen toiminta OK" checked={draft.kayttovesiLisavastusToimii} onChange={(v) => patchDraft({ kayttovesiLisavastusToimii: v })} />
+                </div>
               ) : null}
               {draft.kayttovesiSahkoVastuksetSijainti === 'ulkopuolinen' ? (
                 <>

@@ -3,6 +3,7 @@ import { LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL } from './constants';
 import {
   LAUHDUTIN_TYYPIT,
   MLP_LAITEKORTTI_ROWS,
+  mlpSnapshotRowText,
   NESTE_VJ_OHJAUS_LAHDE,
   NESTE_VJ_OHJAUS_TAPA,
   circuitCompressorDisplayCount,
@@ -308,7 +309,7 @@ export function buildEquipmentCardSnapshotPrintHtml(snapshot: ParsedEquipmentSna
       const value =
         String(key).includes('SyottoValinta') || String(key).includes('PumpunSyottoValinta')
           ? formatPumpSyottoReadout(raw) ?? '—'
-          : snapVal(raw);
+          : mlpSnapshotRowText(key, raw) ?? '—';
       if (isPrintValueFilled(value)) mlpRows.push({ label, value });
     }
     if (m.kiinteistoPiiritSisallytetaan === false) {
