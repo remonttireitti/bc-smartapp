@@ -287,7 +287,7 @@ export function MaintenanceReportTabContent({
     return (
       <section className="maintenance-report-tab-section huolto-modules-stack">
         <EvaporatorCircuitsSync form={form} onChange={onSyncForm} />
-        {form.laiteTyyppi === 'vakioilmastointtikone' && (parseInt(form.kylmaainePiireja, 10) || 1) > 1 ? (
+        {form.laiteTyyppi === 'vakioilmastointtikone' && form.laiteKokoonpano && (parseInt(form.kylmaainePiireja, 10) || 1) > 1 ? (
           <ToggleSwitch
             className="form-toggle huolto-span-all"
             label="Yhteinen höyrystin kaikille kylmäainepiireille"

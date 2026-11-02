@@ -159,6 +159,7 @@ function completionForTab(
     case 'mlpAktiivijaahdytys':
     case 'kostutus':
     case 'kuivaus':
+    case 'vesikenno':
     case 'lampotilansaato':
     case 'ilmapuoli':
     case 'vakOhjaus':

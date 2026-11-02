@@ -57,7 +57,7 @@ function groupOf(entry: MaintenanceDocumentEntry): GroupId {
   }
   if (id === 'konvektorit') return 'konvektorit';
   if (entry.kind === 'mlpUnit') return entry.mlpUnitId === 'energia' ? 'mittaukset' : 'hoyrystys';
-  if (['jaahdytysvesi', 'vapaajahdytys', 'kiinteistoJahdytys', 'mlp'].includes(id)) return 'hoyrystys';
+  if (['jaahdytysvesi', 'vapaajahdytys', 'kiinteistoJahdytys', 'mlp', 'vesikenno'].includes(id)) return 'hoyrystys';
   if (['kostutus', 'kuivaus', 'lampotilansaato', 'ilmapuoli', 'vakOhjaus'].includes(id)) return 'toiminnot';
   if (['ohjaukset', 'kylmioMittaukset', 'lammitystoiminto', 'mlpAktiivijaahdytys', 'energia'].includes(id)) return 'mittaukset';
   if (id === 'huomiot' || id === 'huoltotiedot') return 'lopetus';

@@ -241,16 +241,25 @@ export function resolveAutoModules(input: {
         modules.vapaajahdytys = true;
       }
       if (input.laiteKokoonpano) {
-        if (input.laiteKokoonpano.vakKylmaainepiiri === false) {
-          // Ei kylmäainepiiriä: vain nestekiertoinen jäähdytyspiiri.
+        const kok = input.laiteKokoonpano;
+        const variantti =
+          kok.vakVariantti ??
+          (kok.vakKylmaainepiiri === false ? 'nestekierto' : isLiquidHeatExchangerCondenser(condenserType) ? 'dx_neste' : 'dx_ilma');
+        // Vanha jäähdytysvesipiiri-moduuli ei ole käytössä: vesikenno on oma kenttämoduulinsa.
+        modules.vedenjajahdytyskone = false;
+        modules.vapaajahdytys = false;
+        if (variantti === 'nestekierto') {
+          // Ei kylmäainepiiriä: vain nestekiertoinen jäähdytyskenno.
           modules.kylmaainePiiri = false;
           modules.hoyrystin = false;
           modules.lauhdutin = false;
           modules.nestelauhduttimet = false;
-          modules.vedenjajahdytyskone = true;
+        } else if (variantti === 'dx_ilma') {
+          modules.lauhdutin = true;
+          modules.nestelauhduttimet = false;
         } else {
-          // Suora höyrystys ilmakennolla: ei jäähdytysvesipiiriä.
-          modules.vedenjajahdytyskone = false;
+          modules.lauhdutin = true;
+          modules.nestelauhduttimet = hasExternalNestelauhdutin(condenserType);
         }
       }
       break;
@@ -324,7 +333,10 @@ export function isSharedEvaporatorAcrossCircuits(
 export function showCondenserModules(
   deviceType: string,
   modules: Record<ModuleKey, boolean>,
+  condenserType?: LauhdutinType | '',
 ): boolean {
+  // VAK: ilmalauhdutin (integroitu / erillinen) on oma vaiheensa; nestelauhdutus käyttää lauhdutuspiiriä.
+  if (deviceType === 'vakioilmastointtikone') return moduleIsActive(modules, 'lauhdutin') && isAirCondenserType(condenserType);
   if (isChillerLikeDevice(deviceType)) return false;
   return moduleIsActive(modules, 'lauhdutin');
 }

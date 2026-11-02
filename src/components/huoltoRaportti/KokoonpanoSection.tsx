@@ -3,7 +3,12 @@ import {
   ilpJarjestelmaOptions,
   ilpSisayksikkoChoices,
   mlpJaahdytysOptions,
-  vakHasRefrigerant,
+  vakCondenserChoices,
+  vakCondenserForVariant,
+  vakHasWaterCoil,
+  vakVariantOptions,
+  vakVariantti,
+  type VakVariantti,
   vakKostutinTyyppiOptions,
   vakLammitysTyyppiOptions,
   vakVesiventtiiliOptions,
@@ -12,7 +17,6 @@ import {
   type MlpJaahdytysTila,
 } from '../../lib/huoltoRaportti/deviceKokoonpano';
 import { createEmptyMittausSisayksikkoData, createEmptySisayksikkoData } from '../../lib/huoltoRaportti/defaults';
-import { isLiquidHeatExchangerCondenser } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import ToggleSwitch from '../ToggleSwitch';
 import { FormInput } from './FormInput';
 
@@ -49,6 +53,8 @@ function ilpCountPatch(form: HuoltoReportData, jarjestelma: IlpJarjestelma): Par
 export function KokoonpanoSection({ form, onFreeCoolingChange, onKokoonpanoChange }: Props) {
   const k = form.laiteKokoonpano ?? {};
   const type = form.laiteTyyppi;
+  const variantti = vakVariantti(form);
+  const circuitCount = Math.min(3, Math.max(1, parseInt(form.kylmaainePiireja, 10) || 1));
   const set = (patch: Partial<LaiteKokoonpano>, extra?: Partial<HuoltoReportData>) =>
     onKokoonpanoChange({ ...k, ...patch }, extra);
 
@@ -71,16 +77,57 @@ export function KokoonpanoSection({ form, onFreeCoolingChange, onKokoonpanoChang
 
       {type === 'vakioilmastointtikone' ? (
         <>
-          <FormCheckbox
-            label="Kylmäainepiiri (suora höyrystys)"
-            checked={vakHasRefrigerant(form)}
-            onChange={(checked) => set({ vakKylmaainepiiri: checked })}
-          />
-          <FormCheckbox
-            label="Vapaajäähdytys"
-            checked={Boolean(form.vapaajahdytysKaytossa)}
-            onChange={onFreeCoolingChange}
-          />
+          <label className="huolto-span-all">
+            Jäähdytystapa
+            <select
+              value={variantti}
+              onChange={(e) => {
+                const v = e.target.value as VakVariantti;
+                set(
+                  { vakVariantti: v, vakKylmaainepiiri: v !== 'nestekierto' },
+                  v === 'nestekierto'
+                    ? undefined
+                    : { lauhdutinTyyppiLaite: vakCondenserForVariant(v, form.lauhdutinTyyppiLaite) as HuoltoReportData['lauhdutinTyyppiLaite'] },
+                );
+              }}
+            >
+              {vakVariantOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </label>
+          {variantti !== 'nestekierto' ? (
+            <>
+              <label className="huolto-span-all">
+                Lauhdutustapa
+                <select
+                  value={vakCondenserForVariant(variantti, form.lauhdutinTyyppiLaite)}
+                  onChange={(e) => set({}, { lauhdutinTyyppiLaite: e.target.value as HuoltoReportData['lauhdutinTyyppiLaite'] })}
+                >
+                  {vakCondenserChoices[variantti].map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+              {variantti === 'dx_neste' ? (
+                <label className="huolto-span-all">
+                  Lauhdutusveden venttiili
+                  <select value={k.vakVesiventtiili ?? ''} onChange={(e) => set({ vakVesiventtiili: e.target.value as LaiteKokoonpano['vakVesiventtiili'] })}>
+                    <option value="">Valitse…</option>
+                    {vakVesiventtiiliOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </label>
+              ) : null}
+              {variantti === 'dx_neste' && form.lauhdutinTyyppiLaite === 'nestekiertoinen' && circuitCount > 1 ? (
+                <FormCheckbox
+                  label="Yhteinen nestelauhdutin kaikille piireille"
+                  checked={form.vjNestelauhdutusJaettu ?? true}
+                  onChange={(checked) => set({}, { vjNestelauhdutusJaettu: checked })}
+                />
+              ) : null}
+              <FormCheckbox
+                label="Lisäksi vesikenno (dual fluid)"
+                checked={vakHasWaterCoil(form)}
+                onChange={(checked) => set({ vakVesikenno: checked })}
+              />
+            </>
+          ) : null}
           <FormCheckbox
             label="Jäähdytys"
             checked={k.vakJaahdytys !== false}
@@ -129,15 +176,6 @@ export function KokoonpanoSection({ form, onFreeCoolingChange, onKokoonpanoChang
           />
           {k.kuivaus === true ? (
             <FormInput label="Kuivauksen vastusteho (kW)" type="number" value={k.vakKuivausKw ?? ''} onChange={(v) => set({ vakKuivausKw: v })} />
-          ) : null}
-          {vakHasRefrigerant(form) && isLiquidHeatExchangerCondenser(form.lauhdutinTyyppiLaite) ? (
-            <label className="huolto-span-all">
-              Lauhdutusveden venttiili
-              <select value={k.vakVesiventtiili ?? ''} onChange={(e) => set({ vakVesiventtiili: e.target.value as LaiteKokoonpano['vakVesiventtiili'] })}>
-                <option value="">Valitse…</option>
-                {vakVesiventtiiliOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </label>
           ) : null}
         </>
       ) : null}
