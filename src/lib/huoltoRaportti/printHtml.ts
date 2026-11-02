@@ -146,8 +146,9 @@ function kvGrid(inner: string): string {
 
 const row = kvr;
 
-function renderFieldModules(data: HuoltoReportData): string {
+function renderFieldModules(data: HuoltoReportData, only?: string[], except?: string[]): string {
   return visibleFieldModules(data)
+    .filter((def) => (!only || only.includes(def.id)) && !(except ?? []).includes(def.id))
     .map((def) => {
       const values = fieldModuleValues(data, def.id);
       const groups = new Map<string, string[]>();
@@ -893,6 +894,7 @@ export function generateMaintenanceReportHtml(
   ${renderCircuitsHtml(data)}
   ${renderCircuitWarningsBanner(data)}
   ${renderEvaporators(data)}
+  ${renderFieldModules(data, ['vesikenno'])}
   ${renderCondensers(data)}
   ${renderLauhdutuspiiri(data)}
   ${renderNestelauhduttimet(data)}
@@ -903,7 +905,7 @@ export function generateMaintenanceReportHtml(
   ${renderKonvektoritTable(data)}
   ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTiiveyskoe(data, imageUrls) : ''}
   ${usesRefrigerantServiceExtras(data.laiteTyyppi) ? renderTyhjiointi(data, imageUrls) : ''}
-  ${renderFieldModules(data)}
+  ${renderFieldModules(data, undefined, ['vesikenno'])}
   <div class="legacy">${renderCustomModulesPrintHtml(data.customModules)}</div>
   ${renderHuomiot(data, imageUrls)}`;
 

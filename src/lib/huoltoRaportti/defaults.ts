@@ -1,3 +1,4 @@
+import { migrateVakFieldModules } from './vakModuleMigration';
 import { normalizeLegacyInspectionStatus } from './huoltoInspectionStatus';
 import {
   defaultCondenserTypeForDevice,
@@ -1020,6 +1021,7 @@ export function normalizeHuoltoReportData(data: Partial<HuoltoReportData>): Huol
   } else if (result.laiteTyyppi) {
     result = applyDeviceTypeDefaults(result, result.laiteTyyppi);
   }
+  if (result.laiteTyyppi === 'vakioilmastointtikone') result.kenttaModuulit = migrateVakFieldModules(result.kenttaModuulit);
   return applyLegacyImportInference(result);
 }
 

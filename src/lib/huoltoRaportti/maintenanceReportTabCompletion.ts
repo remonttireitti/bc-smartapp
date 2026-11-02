@@ -160,7 +160,8 @@ function completionForTab(
     case 'kostutus':
     case 'kuivaus':
     case 'vesikenno':
-    case 'lampotilansaato':
+    case 'lammitys':
+    case 'vakMittaukset':
     case 'ilmapuoli':
     case 'vakOhjaus':
       return fieldModuleCompletion(form, tabId);

@@ -92,6 +92,7 @@ export const MAINTENANCE_REPORT_BUILTIN_SECTIONS: readonly MaintenanceReportSect
     label: hoyrystinSectionTitle,
     isVisible: (input) => input.showEvaporatorSection,
   },
+  fieldModuleSection('vesikenno', 'vedenjajahdytyskone'),
   {
     id: 'lauhdutin',
     themeKey: 'lauhdutin',
@@ -129,11 +130,11 @@ export const MAINTENANCE_REPORT_BUILTIN_SECTIONS: readonly MaintenanceReportSect
     label: () => 'Vapaajäähdytys',
     isVisible: (input) => input.showVapaajahdytysSection,
   },
-  fieldModuleSection('vesikenno', 'vedenjajahdytyskone'),
-  fieldModuleSection('lampotilansaato', 'konvektorit'),
   fieldModuleSection('kostutus', 'vapaajahdytys'),
   fieldModuleSection('kuivaus', 'tiiveyskoe'),
   fieldModuleSection('ilmapuoli', 'hoyrystin'),
+  fieldModuleSection('lammitys', 'konvektorit'),
+  fieldModuleSection('vakMittaukset', 'konvektorit'),
   fieldModuleSection('vakOhjaus', 'vjOhjaus'),
   {
     id: 'konvektorit',

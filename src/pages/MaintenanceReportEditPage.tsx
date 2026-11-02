@@ -152,6 +152,8 @@ import {
 import { cloneHuoltoReportForSiblingEquipment } from '../lib/huoltoRaportti/cloneReportForSiblingEquipment';
 import {
   createSiblingMaintenanceReport,
+  fillIdentityFromSourceEquipment,
+  loadSourceEquipmentIdentity,
   type SiblingEquipmentCopyInput,
 } from '../lib/huoltoRaportti/siblingEquipmentCopy';
 import {
@@ -845,13 +847,18 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         return;
       }
 
+      const sourceIdentity = await loadSourceEquipmentIdentity(supabase, row.equipment_id).catch(() => null);
+      const sourceData = fillIdentityFromSourceEquipment(row.data, sourceIdentity);
       siblingCopyDefaultsRef.current = {
-        malli: row.data.laiteMalli?.trim() || undefined,
-        valmistaja: row.data.laiteValmistaja?.trim() || undefined,
-        sourceLabel: [row.data.laiteTunnus, row.data.laiteMalli].filter((v) => String(v ?? '').trim()).join(' · ') || undefined,
+        malli: realIdentityValue(sourceData.laiteMalli) || undefined,
+        valmistaja: realIdentityValue(sourceData.laiteValmistaja) || undefined,
+        sourceLabel:
+          [realIdentityValue(row.data.laiteTunnus) || sourceIdentity?.tag, realIdentityValue(sourceData.laiteMalli)]
+            .filter(Boolean)
+            .join(' · ') || undefined,
       };
 
-      setForm(cloneHuoltoReportForSiblingEquipment(row.data));
+      setForm(cloneHuoltoReportForSiblingEquipment(sourceData));
       setCopySourceEquipmentId(row.equipment_id);
       setCopySiblingMode(true);
       setEquipmentId('');
@@ -1403,11 +1410,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       }
 
       const partnership = contextMode === 'partner' ? partnerships.find((p) => p.id === partnerId) : null;
-      const sourceForm = formStateRef.current.form;
+      const sourceIdentity = await loadSourceEquipmentIdentity(
+        supabase,
+        copySiblingMode ? copySourceEquipmentId : equipmentId,
+      ).catch(() => null);
+      const sourceForm = fillIdentityFromSourceEquipment(formStateRef.current.form, sourceIdentity);
       const sourceReportId = reportId;
       const sourceDraftKey = draftStorageKey;
       const sourceViewKey = reportViewKey;
-      const sourceTunnus = String(sourceForm.laiteTunnus ?? '').trim();
+      const sourceTunnus = realIdentityValue(sourceForm.laiteTunnus) || sourceIdentity?.tag || '';
 
       const { reportId: newReportId } = await createSiblingMaintenanceReport({
         sourceForm,
@@ -2055,6 +2066,30 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     return true;
   }
 
+  /** Laitetiedot-dialogin kirjoitukset talteen heti (ei validointia) — muuten ne jäisivät vain dialogin luonnokseen. */
+  function applyDeviceDraftSilently(rawDraft: HuoltoReportData) {
+    const current = formStateRef.current.form;
+    const deviceDraft: HuoltoReportData = { ...rawDraft, ...syncIlpOutdoorIdentity(rawDraft) };
+    const patch: Partial<HuoltoReportData> = {
+      laiteValmistaja: deviceDraft.laiteValmistaja,
+      laiteMalli: deviceDraft.laiteMalli,
+      laiteTunnus: deviceDraft.laiteTunnus,
+      laiteSarjanumero: deviceDraft.laiteSarjanumero,
+      laiteSijainti: deviceDraft.laiteSijainti,
+      laiteKayttotarkoitus: deviceDraft.laiteKayttotarkoitus,
+      ...(isIlpDevice(current.laiteTyyppi)
+        ? { ulkoyksikkoMalli: deviceDraft.ulkoyksikkoMalli, ulkoyksikkoSarjanumero: deviceDraft.ulkoyksikkoSarjanumero }
+        : {}),
+    };
+    const changed = (Object.keys(patch) as (keyof HuoltoReportData)[]).some((k) => patch[k] !== undefined && patch[k] !== current[k]);
+    if (!changed) return;
+    const next = mergeHuoltoReportData(current, patch);
+    setHasUnsavedChanges(true);
+    formStateRef.current = { ...formStateRef.current, form: next };
+    persistDraftLocally(next);
+    setForm(next);
+  }
+
   function markModuleVisited(tabId: string) {
     const nextVisited = markMaintenanceModuleVisited(form.visitedModuleIds, tabId);
     if (nextVisited === form.visitedModuleIds) return;
@@ -2336,6 +2371,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         registryMessage={registryMessage}
         copySiblingMode={copySiblingMode}
         onApply={applyDeviceDialogClose}
+        onDraftChange={applyDeviceDraftSilently}
         onDeviceTypeSelect={applyDeviceTypeFromDialog}
         onClose={() => {
           setDeviceDialogOpen(false);

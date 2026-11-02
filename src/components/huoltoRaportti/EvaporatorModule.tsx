@@ -100,6 +100,12 @@ export function EvaporatorModule({
     .join(' · ');
 
   useEffect(() => {
+    if (isVak && !disabled && data.tyyppi !== 'suorahoyrystin') {
+      onChange({ ...data, tyyppi: 'suorahoyrystin', sulatus: 'ilma' });
+    }
+  }, [isVak, disabled, data.tyyppi]);
+
+  useEffect(() => {
     if (dialogOpen) setDraft(data);
   }, [dialogOpen, data]);
 
@@ -125,7 +131,8 @@ export function EvaporatorModule({
     const showOwnOhjaus = isKylmioDevice(laiteTyyppi) && !ohjausShared;
     const on = (v: boolean | undefined) => v !== false;
     const set = (patch: Partial<EvaporatorData>) => setSource((prev) => ({ ...prev, ...patch }));
-    const fansDefrost = evaporatorShowsFansAndDefrost(source.tyyppi);
+    // VAK: DX-höyrystin on aina suora kylmäainehöyrystin — ei nestepuolen (levy/putki) valintaa eikä sulatusta.
+    const fansDefrost = !isVak && evaporatorShowsFansAndDefrost(source.tyyppi);
     const selectVal =
       chillerHx && !isHeatExchangerEvaporatorType(source.tyyppi) && source.tyyppi !== 'suorahoyrystin'
         ? ''
@@ -144,7 +151,7 @@ export function EvaporatorModule({
                 disabled={disabled}
               />
             )}
-            {chillerHx ? (
+            {isVak ? null : chillerHx ? (
             <label className="huolto-span-all">
               Lämmönvaihtimen tyyppi
               <select

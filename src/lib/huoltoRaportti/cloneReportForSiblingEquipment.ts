@@ -1,4 +1,5 @@
 import { normalizeHuoltoReportData } from './defaults';
+import { realIdentityValue } from './ilpIdentity';
 import type { HuoltoReportData } from './types';
 
 /** Tyhjennetään laitteen yksilöivät kentät kopioitaessa pöytäkirja toiselle laitteelle samalla kohteella. */
@@ -10,9 +11,13 @@ export function cloneHuoltoReportForSiblingEquipment(
     structuredClone(source) as HuoltoReportData,
   );
 
+  // Vain tunnus ja sarjanumero ovat laitekohtaisia; sijainti, käyttötarkoitus, malli ja valmistaja kopioidaan.
   next.laiteTunnus = '';
   next.laiteSarjanumero = '';
-  next.laiteSijainti = '';
+  next.laiteSijainti = realIdentityValue(next.laiteSijainti);
+  next.laiteKayttotarkoitus = realIdentityValue(next.laiteKayttotarkoitus);
+  next.laiteMalli = realIdentityValue(next.laiteMalli);
+  next.laiteValmistaja = realIdentityValue(next.laiteValmistaja);
   next.equipmentSnapshot = undefined;
 
   if (!options?.keepModel) {
