@@ -1,3 +1,4 @@
+import { vakCondenserForVariant, vakVariantti } from './deviceKokoonpano';
 import { carryHuoltoAsetukset } from '../huoltoSchedule';
 import { ilpDeviceModel, ilpDeviceSerial, isIlpDevice, realIdentityValue } from './ilpIdentity';
 import {
@@ -581,6 +582,14 @@ export function applyEquipmentSnapshotToForm(
       const curEmpty = cur == null || (typeof cur === 'string' && !cur.trim()) || typeof cur === 'boolean';
       // Boolean: raportin oletus ei ole käyttäjän valinta → laitekortin arvo voittaa uudella raportilla.
       if (curEmpty) (patch as Record<string, unknown>)[k] = v;
+    }
+  }
+  if (form.laiteTyyppi === 'vakioilmastointtikone' && patch.laiteKokoonpano) {
+    // VAK: lauhdutustapa sopii laitekortin päävarianttiin (laitekortin tyyppi voittaa raportin oletuksen).
+    const snapCondenser = trim(snapAny.lauhdutinTyyppiLaite) || trim(form.lauhdutinTyyppiLaite);
+    const variantti = vakVariantti({ laiteTyyppi: form.laiteTyyppi, laiteKokoonpano: patch.laiteKokoonpano, lauhdutinTyyppiLaite: snapCondenser });
+    if (variantti !== 'nestekierto') {
+      (patch as Record<string, unknown>).lauhdutinTyyppiLaite = vakCondenserForVariant(variantti, snapCondenser);
     }
   }
   // Piireittäinen höyrystinmäärä vain jos raportilla ei ole jo omaa kokonaismäärää (ei muuta olemassa olevaa määrää).

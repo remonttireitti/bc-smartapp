@@ -492,7 +492,7 @@ function renderCondensers(data: HuoltoReportData): string {
       const tarkastukset = blk('Tarkastukset', [
         chk('Kenno puhdistettu', co.lauhdutinPuhdistettu),
         chk(LAUHDUTIN_PAINEVENTTIILI_LABEL, co.painesäätimenTarkistettu),
-        chk('Virtaus riittävä', co.virtausRiittävä),
+        isChillerLikeDevice(data.laiteTyyppi) ? '' : chk('Virtaus riittävä', co.virtausRiittävä),
       ]);
       const huomio = renderInspectionHuomioRow(co.tarkastusHuomio, esc);
       return box(`Lauhdutin ${i + 1}`, `${tiedot}${mittaukset}${fans}${tarkastukset}${huomio}`, inspectionHeader(co.tarkastusTila ?? condenserInspectionStatus(co)));

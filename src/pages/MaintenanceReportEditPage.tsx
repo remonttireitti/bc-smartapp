@@ -319,7 +319,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     reportTitle,
   });
   const showEvaporatorSection = showEvaporatorModules(form.laiteTyyppi, form.selectedModules);
-  const showCondenserSection = showCondenserModules(form.laiteTyyppi, form.selectedModules);
+  const showCondenserSection = showCondenserModules(form.laiteTyyppi, form.selectedModules, form.lauhdutinTyyppiLaite);
   const showMlpSection = showMlpModules(form.laiteTyyppi, form.selectedModules);
   const showChillerKiinteistoTab = showChillerKiinteistoSection(form.laiteTyyppi) && !vakUsesExplicitConfig(form);
   const showChillerEnergyTab = showChillerEnergySection(form.laiteTyyppi) && !vakUsesExplicitConfig(form);
@@ -423,6 +423,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     () => ({
       laiteTyyppi: form.laiteTyyppi,
       laiteKokoonpano: form.laiteKokoonpano,
+      lauhdutinTyyppiLaite: form.lauhdutinTyyppiLaite,
+      vapaajahdytysKaytossa: form.vapaajahdytysKaytossa,
       selectedModules: form.selectedModules,
       customModules: form.customModules ?? [],
       showEvaporatorSection,
@@ -440,6 +442,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     [
       form.laiteTyyppi,
       form.laiteKokoonpano,
+      form.lauhdutinTyyppiLaite,
+      form.vapaajahdytysKaytossa,
       form.selectedModules,
       form.customModules,
       showEvaporatorSection,

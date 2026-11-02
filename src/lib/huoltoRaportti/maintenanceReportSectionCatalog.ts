@@ -48,6 +48,8 @@ function fieldModuleSection(id: FieldModuleId, themeKey: ModuleThemeKey): Mainte
     isVisible: (input) => Boolean(findFieldModule(id)?.isVisible({
       laiteTyyppi: input.laiteTyyppi,
       laiteKokoonpano: input.laiteKokoonpano,
+      lauhdutinTyyppiLaite: input.lauhdutinTyyppiLaite,
+      vapaajahdytysKaytossa: input.vapaajahdytysKaytossa,
     })),
   };
 }
@@ -127,6 +129,7 @@ export const MAINTENANCE_REPORT_BUILTIN_SECTIONS: readonly MaintenanceReportSect
     label: () => 'Vapaajäähdytys',
     isVisible: (input) => input.showVapaajahdytysSection,
   },
+  fieldModuleSection('vesikenno', 'vedenjajahdytyskone'),
   fieldModuleSection('lampotilansaato', 'konvektorit'),
   fieldModuleSection('kostutus', 'vapaajahdytys'),
   fieldModuleSection('kuivaus', 'tiiveyskoe'),

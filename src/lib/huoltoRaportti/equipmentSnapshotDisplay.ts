@@ -1,5 +1,5 @@
 import { kayttovesiVaraajaTyyppiOptions } from './constants';
-import { vakKostutinTyyppiOptions, vakLammitysTyyppiOptions, vakVesiventtiiliOptions, type LaiteKokoonpano } from './deviceKokoonpano';
+import { vakCondenserChoices, vakHasWaterCoil, vakKostutinTyyppiOptions, vakLammitysTyyppiOptions, vakVariantOptions, vakVariantti, vakVesiventtiiliOptions, type LaiteKokoonpano } from './deviceKokoonpano';
 import { refrigerantCircuitHasMagnetValve } from './deviceModuleLogic';
 import type { CondenserData, EquipmentSnapshot, NestelauhdutinUnitData } from './types';
 
@@ -258,15 +258,23 @@ export function vakKokoonpanoRows(snapshot: Record<string, unknown>): { label: s
   const konf = (snapshot.laiteKonfiguraatio ?? {}) as Record<string, unknown>;
   const kiinteat = (snapshot.kenttaKiinteat ?? {}) as Record<string, Record<string, unknown>>;
   const cond = String(snapshot.lauhdutinTyyppiLaite ?? '');
+  const variantti = vakVariantti({ laiteTyyppi: 'vakioilmastointtikone', laiteKokoonpano: k, lauhdutinTyyppiLaite: cond });
+  const dx = variantti !== 'nestekierto';
+  const kiinteaPuhallin = String(kiinteat.ilmapuoli?.puhallinTyyppi ?? '').trim();
+  const circuits = String(snapshot.kylmaainePiireja ?? '').trim();
+  const waterCoil = vakHasWaterCoil({ laiteTyyppi: 'vakioilmastointtikone', laiteKokoonpano: k, lauhdutinTyyppiLaite: cond, vapaajahdytysKaytossa: konf.vapaajahdytysKaytossa === true });
   const rows: { label: string; value: string }[] = [
-    { label: 'Höyrystin', value: k.vakKylmaainepiiri === false ? 'Nestekierto (jäähdytyspiiri)' : 'Suora kylmäaine (ilmakenno)' },
-    { label: 'Lauhdutustapa', value: LAUHDUTIN_TYYPIT[cond] ?? '' },
-    { label: 'Lauhdutusveden venttiili', value: lab(vakVesiventtiiliOptions, k.vakVesiventtiili) },
+    { label: 'Jäähdytystapa', value: vakVariantOptions.find((o) => o.value === variantti)?.label ?? '' },
+    { label: 'Kylmäainepiirit', value: dx && circuits ? `${circuits} kpl` : '' },
+    { label: 'Höyrystin', value: dx ? 'Suora kylmäaine (ilmakenno)' : '' },
+    { label: 'Lauhdutustapa', value: dx ? (vakCondenserChoices[variantti as 'dx_ilma' | 'dx_neste'].find((c) => c.value === cond)?.label ?? LAUHDUTIN_TYYPIT[cond] ?? '') : '' },
+    { label: 'Lauhdutusveden venttiili', value: variantti === 'dx_neste' ? lab(vakVesiventtiiliOptions, k.vakVesiventtiili) : '' },
+    { label: 'Vesikenno', value: dx && waterCoil ? 'Kyllä (dual fluid)' : '' },
     { label: 'Jäähdytys', value: k.vakJaahdytys !== false ? 'Kyllä' : '' },
     { label: 'Lämmitys', value: k.vakLammitys ? join(lab(vakLammitysTyyppiOptions, k.vakLammitysTyyppi), kw(k.vakLammitysKw)) || 'Kyllä' : '' },
     { label: 'Kostutus', value: k.kostutus ? join(lab(vakKostutinTyyppiOptions, k.vakKostutinTyyppi), String(k.vakKostutinMalli ?? '').trim()) || 'Kyllä' : '' },
     { label: 'Kuivaus', value: k.kuivaus ? kw(k.vakKuivausKw) || 'Kyllä' : '' },
-    { label: 'Vapaajäähdytys', value: konf.vapaajahdytysKaytossa === true ? 'Kyllä' : '' },
+    { label: 'Puhallin', value: kiinteaPuhallin },
     { label: 'Suodattimien tyyppi', value: String(kiinteat.ilmapuoli?.suodatinTyyppi ?? '').trim() },
     { label: 'Säädin', value: String(kiinteat.vakOhjaus?.saadin ?? '').trim() },
   ];

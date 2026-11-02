@@ -9,6 +9,7 @@ export type BuiltInMaintenanceReportTabId =
   | 'mlpAktiivijaahdytys'
   | 'kostutus'
   | 'kuivaus'
+  | 'vesikenno'
   | 'lampotilansaato'
   | 'ilmapuoli'
   | 'vakOhjaus'
@@ -41,6 +42,8 @@ export type MaintenanceReportTabBuildInput = {
   laiteTyyppi: string;
   laiteKokoonpano?: import('./deviceKokoonpano').LaiteKokoonpano;
   kenttaModuulit?: import('./deviceKokoonpano').KenttaModuuliArvot;
+  lauhdutinTyyppiLaite?: string;
+  vapaajahdytysKaytossa?: boolean;
   selectedModules: Record<string, boolean>;
   showEvaporatorSection: boolean;
   showCondenserSection: boolean;

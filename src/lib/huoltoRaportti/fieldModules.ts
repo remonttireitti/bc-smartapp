@@ -2,7 +2,7 @@
  * Kokoonpanon mukaan näytettävät kenttämoduulit (ohjaukset, kostutus, kuivaus, lämmitys-/jäähdytystoiminto).
  * Arvot: form.kenttaModuulit[moduuliId][kenttaId].
  */
-import { isKylmioDevice, vakCoolingOn, vakHeatingOn, vjHeatingEnabled, type KenttaModuuliArvot, type LaiteKokoonpano } from './deviceKokoonpano';
+import { isKylmioDevice, vakCoolingOn, vakHasWaterCoil, vakHeatingOn, vjHeatingEnabled, type KenttaModuuliArvot, type LaiteKokoonpano } from './deviceKokoonpano';
 import type { MaintenanceTabCompletionState } from './maintenanceReportTabCompletion';
 
 export type FieldModuleId =
@@ -12,6 +12,7 @@ export type FieldModuleId =
   | 'mlpAktiivijaahdytys'
   | 'kostutus'
   | 'kuivaus'
+  | 'vesikenno'
   | 'lampotilansaato'
   | 'ilmapuoli'
   | 'vakOhjaus';
@@ -49,6 +50,8 @@ export type FieldModuleDefinition = {
 export type FieldModuleForm = {
   laiteTyyppi: string;
   laiteKokoonpano?: LaiteKokoonpano;
+  lauhdutinTyyppiLaite?: string;
+  vapaajahdytysKaytossa?: boolean;
   kenttaModuulit?: KenttaModuuliArvot;
   evaporatorData?: unknown[];
   kylmaainePiireja?: string;
@@ -154,6 +157,25 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
     ],
   },
   {
+    id: 'vesikenno',
+    title: 'Jäähdytysvesikenno',
+    isVisible: (form) => vakHasWaterCoil(form),
+    fields: [
+      { id: 'neste', label: 'Neste', type: 'select', options: ['Vesi', 'Glykoli 20 %', 'Glykoli 30 %', 'Glykoli 40 %'], fixed: true },
+      { id: 'meno', label: 'Menovesi', type: 'text', unit: '°C', measured: true },
+      { id: 'paluu', label: 'Paluuvesi', type: 'text', unit: '°C', measured: true },
+      { id: 'virtaus', label: 'Virtaus', type: 'text', unit: 'm³/h' },
+      { id: 'paine', label: 'Vesipiirin paine', type: 'text', unit: 'bar' },
+      { id: 'venttiili', label: 'Venttiilin ja toimilaitteen toiminta', type: 'select', options: KUNTO },
+      { id: 'kennoKunto', label: 'Kennon kunto', type: 'select', options: ['Kunnossa', 'Likainen', 'Vika'] },
+      { id: 'kennoPuhdistettu', label: 'Kenno puhdistettu', type: 'toggle' },
+      { id: 'ilmaus', label: 'Ilmaus tehty', type: 'toggle' },
+      { id: 'likasuodatin', label: 'Likasuodatin puhdistettu', type: 'toggle' },
+      { id: 'vuodot', label: 'Putkisto ja liitokset (vuodot)', type: 'select', options: KUNTO },
+      { id: 'huomio', label: 'Huomiot', type: 'textarea' },
+    ],
+  },
+  {
     id: 'lampotilansaato',
     title: 'Jäähdytys ja lämmitys',
     isVisible: (form) => vakCoolingOn(form) || vakHeatingOn(form),
@@ -163,6 +185,9 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
       { id: 'jaahdytysToiminta', label: 'Jäähdytyksen toiminta', type: 'select', options: KUNTO, when: (_v, form) => vakCoolingOn(form) },
       { id: 'lammitysToiminta', label: 'Lämmityksen toiminta', type: 'select', options: KUNTO, when: (_v, form) => vakHeatingOn(form) },
       { id: 'lammitysVirta', label: 'Lämmitysvastusten virta', type: 'text', unit: 'A', when: (_v, form) => vakHeatingOn(form) && form.laiteKokoonpano?.vakLammitysTyyppi === 'sahko' },
+      { id: 'lammitysVentiili', label: 'Lämmityspatterin venttiili ja toimilaite', type: 'select', options: KUNTO, when: (_v, form) => vakHeatingOn(form) && form.laiteKokoonpano?.vakLammitysTyyppi === 'vesi' },
+      { id: 'lammitysMeno', label: 'Lämmityksen menovesi', type: 'text', unit: '°C', measured: true, when: (_v, form) => vakHeatingOn(form) && form.laiteKokoonpano?.vakLammitysTyyppi === 'vesi' },
+      { id: 'lammitysPaluu', label: 'Lämmityksen paluuvesi', type: 'text', unit: '°C', measured: true, when: (_v, form) => vakHeatingOn(form) && form.laiteKokoonpano?.vakLammitysTyyppi === 'vesi' },
       { id: 'tuloIlma', label: 'Tuloilma', type: 'text', unit: '°C', measured: true },
       { id: 'poistoIlma', label: 'Poistoilma', type: 'text', unit: '°C', measured: true },
       { id: 'huomio', label: 'Huomiot', type: 'textarea' },
@@ -176,8 +201,12 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
       { id: 'asetusarvo', label: 'Kostutuksen asetusarvo', type: 'text', unit: '%RH', required: true },
       { id: 'saatoalue', label: 'Säätöalue / hystereesi', type: 'text', unit: '%RH' },
       { id: 'mitattu', label: 'Mitattu kosteus', type: 'text', unit: '%RH' },
-      { id: 'sylinteri', label: 'Höyrysylinterin kunto', type: 'select', options: ['Kunnossa', 'Puhdistettu', 'Vaihdettu', 'Vika'], required: true },
+      { id: 'sylinteriTyyppi', label: 'Sylinterin tyyppi', type: 'select', options: ['Kertakäyttöinen', 'Avattava'], fixed: true, when: (_v, form) => form.laiteKokoonpano?.vakKostutinTyyppi !== 'muu' },
+      { id: 'sylinteri', label: 'Höyrysylinterin kunto', type: 'select', options: ['Kunnossa', 'Puhdistettu', 'Vaihdettu', 'Vika'], required: true, when: (_v, form) => form.laiteKokoonpano?.vakKostutinTyyppi !== 'muu' },
+      { id: 'tunnit', label: 'Sylinterin käyttötunnit', type: 'text', unit: 'h', when: (_v, form) => form.laiteKokoonpano?.vakKostutinTyyppi !== 'muu' },
+      { id: 'tuntilaskuriNollattu', label: 'Tuntilaskuri nollattu', type: 'toggle', when: (v) => v.sylinteri === 'Vaihdettu' },
       { id: 'virta', label: 'Sylinterin virta', type: 'text', unit: 'A' },
+      { id: 'hoyryletku', label: 'Höyryletku ja kondenssi', type: 'select', options: KUNTO },
       { id: 'venttiilit', label: 'Vesiliitäntä ja tyhjennys', type: 'select', options: KUNTO },
       { id: 'johtokyky', label: 'Veden johtokyky', type: 'text', unit: 'µS/cm' },
       { id: 'huomio', label: 'Huomiot', type: 'textarea' },
@@ -191,10 +220,10 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
       { id: 'asetusarvo', label: 'Kuivauksen asetusarvo', type: 'text', unit: '%RH' },
       { id: 'toiminta', label: 'Kuivauksen toiminta', type: 'select', options: KUNTO },
       { id: 'jalkilammitys', label: 'Jälkilämmityksen asetusarvo', type: 'text', unit: '°C' },
-      { id: 'virtaL1', label: 'Vastusten virta L1', type: 'text', unit: 'A' },
-      { id: 'virtaL2', label: 'Vastusten virta L2', type: 'text', unit: 'A' },
-      { id: 'virtaL3', label: 'Vastusten virta L3', type: 'text', unit: 'A' },
-      { id: 'ylilampo', label: 'Ylilämpösuoja testattu', type: 'select', options: KUNTO, required: true },
+      { id: 'virtaL1', label: 'Vastusten virta L1', type: 'text', unit: 'A', when: (_v, form) => Boolean(form.laiteKokoonpano?.vakKuivausKw?.trim()) },
+      { id: 'virtaL2', label: 'Vastusten virta L2', type: 'text', unit: 'A', when: (_v, form) => Boolean(form.laiteKokoonpano?.vakKuivausKw?.trim()) },
+      { id: 'virtaL3', label: 'Vastusten virta L3', type: 'text', unit: 'A', when: (_v, form) => Boolean(form.laiteKokoonpano?.vakKuivausKw?.trim()) },
+      { id: 'ylilampo', label: 'Ylilämpösuoja testattu', type: 'select', options: KUNTO, when: (_v, form) => Boolean(form.laiteKokoonpano?.vakKuivausKw?.trim()) },
       { id: 'huomio', label: 'Huomiot', type: 'textarea' },
     ],
   },
@@ -203,11 +232,18 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
     title: 'Ilmapuoli',
     isVisible: (form) => form.laiteTyyppi === 'vakioilmastointtikone',
     fields: [
-      { id: 'suodatinTyyppi', label: 'Suodattimien tyyppi', type: 'text', fixed: true },
-      { id: 'suodattimetVaihdettu', label: 'Suodattimet vaihdettu', type: 'toggle' },
-      { id: 'puhallin', label: 'Puhaltimen toiminta', type: 'select', options: KUNTO },
-      { id: 'puhallinVirta', label: 'Puhaltimen virta', type: 'text', unit: 'A' },
-      { id: 'kondenssivesi', label: 'Kondenssivesi / vesilukko', type: 'select', options: KUNTO },
+      { id: 'puhallinTyyppi', label: 'Puhaltimen tyyppi', type: 'select', options: ['EC', 'AC suoraveto', 'AC hihnaveto'], fixed: true, section: 'Puhallin' },
+      { id: 'puhallin', label: 'Puhaltimen toiminta', type: 'select', options: KUNTO, section: 'Puhallin' },
+      { id: 'puhallinVirta', label: 'Puhaltimen virta', type: 'text', unit: 'A', section: 'Puhallin' },
+      { id: 'puhallinNopeus', label: 'Pyörimisnopeus / EC-asetus', type: 'text', unit: '% / rpm', section: 'Puhallin' },
+      { id: 'laakerit', label: 'Laakerit ja kiinnitys', type: 'select', options: KUNTO, section: 'Puhallin' },
+      { id: 'hihna', label: 'Hihna ja hihnapyörät', type: 'select', options: ['Kunnossa', 'Kiristetty', 'Vaihdettu', 'Vika'], section: 'Puhallin', when: (_v, form) => form.kenttaModuulit?.ilmapuoli?.puhallinTyyppi === 'AC hihnaveto' },
+      { id: 'juoksupyora', label: 'Juoksupyörä puhdas', type: 'toggle', section: 'Puhallin' },
+      { id: 'suodatinTyyppi', label: 'Suodattimien tyyppi', type: 'text', fixed: true, section: 'Suodattimet' },
+      { id: 'suodatinDp', label: 'Suodattimen paine-ero', type: 'text', unit: 'Pa', section: 'Suodattimet' },
+      { id: 'suodatinHalytys', label: 'Tukkeutumishälytys', type: 'select', options: KUNTO_EI_OLE, section: 'Suodattimet' },
+      { id: 'suodattimetVaihdettu', label: 'Suodattimet vaihdettu', type: 'toggle', section: 'Suodattimet' },
+      { id: 'kondenssivesi', label: 'Kondenssivesi / vesilukko', type: 'select', options: KUNTO, section: 'Kondenssivesi' },
       { id: 'huomio', label: 'Huomiot', type: 'textarea' },
     ],
   },

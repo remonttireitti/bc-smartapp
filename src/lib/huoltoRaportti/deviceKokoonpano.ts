@@ -13,8 +13,12 @@ export type LaiteKokoonpano = {
   lammitysToiminto?: boolean;
   /** Maalämpöpumppu: jäähdytystapa. */
   mlpJaahdytys?: MlpJaahdytysTila;
-  /** Vakioilmastointikone: kylmäainepiiri (pois = vain nestekiertoinen jäähdytyspiiri). */
+  /** Vakioilmastointikone: kylmäainepiiri (pois = vain nestekiertoinen jäähdytyspiiri). Kirjoitetaan variantin mukana. */
   vakKylmaainepiiri?: boolean;
+  /** Vakioilmastointikone: päävariantti (puuttuu vanhoissa → päätellään datasta). */
+  vakVariantti?: VakVariantti;
+  /** Vakioilmastointikone: lisäksi jäähdytysvesikenno (dual fluid / vapaajäähdytys), DX-variantit. */
+  vakVesikenno?: boolean;
   /** Vakioilmastointikone: kostutus höyrysylinterillä. */
   kostutus?: boolean;
   /** Vakioilmastointikone: kuivaus / jälkilämmitys sähkövastuksilla. */
@@ -37,6 +41,26 @@ export type LaiteKokoonpano = {
   vakVesiventtiili?: VakVesiventtiili;
   /** Ilmalämpöpumppu: järjestelmätyyppi. */
   ilpJarjestelma?: IlpJarjestelma;
+};
+
+export type VakVariantti = 'nestekierto' | 'dx_ilma' | 'dx_neste';
+
+export const vakVariantOptions: { value: VakVariantti; label: string }[] = [
+  { value: 'nestekierto', label: 'Nestekiertoinen (jäähdytysvesi, ei kylmäainepiiriä)' },
+  { value: 'dx_ilma', label: 'Kylmäainepiiri + ilmalauhdutin' },
+  { value: 'dx_neste', label: 'Kylmäainepiiri + nestelauhdutus' },
+];
+
+/** Lauhdutustavat per DX-variantti (arvot = chillerLauhdutinTypeOptions). */
+export const vakCondenserChoices: Record<'dx_ilma' | 'dx_neste', { value: string; label: string }[]> = {
+  dx_ilma: [
+    { value: 'koneseen_integroitu', label: 'Integroitu ilmalauhdutin (koneessa)' },
+    { value: 'erillinen_ilma', label: 'Erillinen ilmalauhdutin' },
+  ],
+  dx_neste: [
+    { value: 'nestekiertoinen_vain_lmv', label: 'Lämmönsiirrin koneen sisällä' },
+    { value: 'nestekiertoinen', label: 'Lämmönsiirrin + erillinen nestelauhdutin' },
+  ],
 };
 
 export type VakLammitysTyyppi = '' | 'sahko' | 'vesi';
@@ -100,7 +124,7 @@ export function isKylmioDevice(laiteTyyppi: string): boolean {
 export function usesCondenserConfig(form: KokoonpanoForm): boolean {
   return isKylmioDevice(form.laiteTyyppi)
     || form.laiteTyyppi === 'vedenjäähdytyskone'
-    || (form.laiteTyyppi === 'vakioilmastointtikone' && vakHasRefrigerant(form));
+    || (form.laiteTyyppi === 'vakioilmastointtikone' && vakHasRefrigerant(form) && !form.laiteKokoonpano);
 }
 
 /** Uuden raportin oletuskokoonpano (vanhoissa raporteissa undefined = vanha rakenne). */
@@ -111,7 +135,7 @@ export function defaultLaiteKokoonpano(laiteTyyppi: string): LaiteKokoonpano | u
     case 'mlp':
       return { mlpJaahdytys: '' };
     case 'vakioilmastointtikone':
-      return { vakKylmaainepiiri: true, kostutus: false, kuivaus: false, vakJaahdytys: true, vakLammitys: false };
+      return { kostutus: false, kuivaus: false, vakJaahdytys: true, vakLammitys: false };
     case 'lämpöpumppu':
       return { ilpJarjestelma: '' };
     case 'pakastin':
@@ -126,6 +150,30 @@ export function defaultLaiteKokoonpano(laiteTyyppi: string): LaiteKokoonpano | u
 export function vakHasRefrigerant(form: KokoonpanoForm): boolean {
   if (form.laiteTyyppi !== 'vakioilmastointtikone') return true;
   return form.laiteKokoonpano?.vakKylmaainepiiri !== false;
+}
+
+const LIQUID_CONDENSERS = ['nestekiertoinen', 'nestekiertoinen_vain_lmv'];
+
+/** VAK: päävariantti. Vanhat kokoonpanot: päätellään kylmäainepiiristä ja lauhdutustavasta. */
+export function vakVariantti(form: KokoonpanoForm & { lauhdutinTyyppiLaite?: string }): VakVariantti {
+  const k = form.laiteKokoonpano;
+  if (k?.vakVariantti) return k.vakVariantti;
+  if (k?.vakKylmaainepiiri === false) return 'nestekierto';
+  return LIQUID_CONDENSERS.includes(form.lauhdutinTyyppiLaite ?? '') ? 'dx_neste' : 'dx_ilma';
+}
+
+/** VAK: lauhdutustapa, joka sopii varianttiin (säilyttää nykyisen jos sopii). */
+export function vakCondenserForVariant(variantti: VakVariantti, current: string | undefined): string {
+  if (variantti === 'nestekierto') return current ?? '';
+  const choices = vakCondenserChoices[variantti];
+  return choices.some((c) => c.value === current) ? (current as string) : choices[0].value;
+}
+
+/** VAK: jäähdytysvesikenno (nestekierto aina; DX-varianteilla dual fluid -kytkimellä). */
+export function vakHasWaterCoil(form: KokoonpanoForm & { lauhdutinTyyppiLaite?: string; vapaajahdytysKaytossa?: boolean }): boolean {
+  if (form.laiteTyyppi !== 'vakioilmastointtikone') return false;
+  if (vakVariantti(form) === 'nestekierto') return true;
+  return form.laiteKokoonpano?.vakVesikenno ?? Boolean(form.vapaajahdytysKaytossa);
 }
 
 /** VAK: jäähdytys käytössä (oletus kyllä; vanhoissa raporteissa kenttä puuttuu). */
@@ -192,13 +240,17 @@ export function ilpSisayksikkoChoices(jarjestelma: IlpJarjestelma | undefined): 
 }
 
 /** VAK: tulosteen kaksi riviä — rakenne (lauhdutus, höyrystys, venttiili) ja toiminnot. */
-export function vakKokoonpanoPrintRows(form: KokoonpanoForm, lauhdutinLabel?: string): { kokoonpano: string; toiminnot: string } {
+export function vakKokoonpanoPrintRows(form: KokoonpanoForm & { lauhdutinTyyppiLaite?: string }, lauhdutinLabel?: string): { kokoonpano: string; toiminnot: string } {
   const k = form.laiteKokoonpano;
   const parts: string[] = [];
-  if (k?.vakKylmaainepiiri === false) parts.push('Ei kylmäainepiiriä (nestekiertoinen jäähdytys)');
+  const variantti = vakVariantti(form);
+  if (variantti === 'nestekierto') parts.push('Nestekiertoinen (jäähdytysvesi), ei kylmäainepiiriä');
   else {
-    if (lauhdutinLabel) parts.push(lauhdutinLabel);
+    parts.push(variantti === 'dx_ilma' ? 'Kylmäainepiiri + ilmalauhdutin' : 'Kylmäainepiiri + nestelauhdutus');
+    const condLabel = vakCondenserChoices[variantti].find((c) => c.value === form.lauhdutinTyyppiLaite)?.label ?? lauhdutinLabel;
+    if (condLabel) parts.push(condLabel.toLowerCase());
     parts.push('suora höyrystys');
+    if (vakHasWaterCoil(form)) parts.push('lisäksi vesikenno');
   }
   const valve = optLabel(vakVesiventtiiliOptions, k?.vakVesiventtiili);
   if (valve) parts.push(`vesiventtiili: ${valve.toLowerCase()}`);
@@ -213,22 +265,16 @@ export function kokoonpanoSummary(form: KokoonpanoForm & { lauhdutinTyyppiLaite?
     if (opt) parts.push(opt.label);
     return parts.join(' · ');
   }
-  if (form.laiteTyyppi === 'vakioilmastointtikone' && k?.vakKylmaainepiiri === false) {
-    parts.push('Ei kylmäainepiiriä (nestekiertoinen jäähdytys)');
-  } else if (lauhdutinLabel) {
-    parts.push(lauhdutinLabel);
+  if (form.laiteTyyppi === 'vakioilmastointtikone') {
+    const v = vakKokoonpanoPrintRows(form, lauhdutinLabel);
+    const text = [v.kokoonpano, v.toiminnot].filter(Boolean).join(' · ');
+    return text.charAt(0).toUpperCase() + text.slice(1);
   }
+  if (lauhdutinLabel) parts.push(lauhdutinLabel);
   if (k?.lammitysToiminto) parts.push('Lämmitystoiminto');
   if (form.laiteTyyppi === 'mlp') {
     const opt = mlpJaahdytysOptions.find((o) => o.value === k?.mlpJaahdytys);
     if (opt) parts.push(opt.label);
-  }
-  if (form.laiteTyyppi === 'vakioilmastointtikone') {
-    if (k?.vakKylmaainepiiri !== false) parts.push('Suora höyrystys');
-    const valve = optLabel(vakVesiventtiiliOptions, k?.vakVesiventtiili);
-    if (valve) parts.push(`Vesiventtiili: ${valve.toLowerCase()}`);
-    parts.push(...vakFunctionLabels(k));
-    return parts.join(' · ');
   }
   if (k?.kostutus) parts.push('Kostutus');
   if (k?.kuivaus) parts.push('Kuivaus');
