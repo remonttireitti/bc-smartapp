@@ -15,7 +15,8 @@ export function migrateVakFieldModules(kentta: KenttaModuuliArvot | undefined): 
   const needs =
     !!old
     || ['asetusarvo', 'saatoalue', 'mitattu'].some((k) => k in kost)
-    || 'asetusarvo' in kuiv;
+    || 'asetusarvo' in kuiv
+    || 'jalkilammitys' in kuiv;
   if (!needs) return kentta;
 
   const next: Record<string, Vals> = { ...kentta } as Record<string, Vals>;
@@ -43,8 +44,9 @@ export function migrateVakFieldModules(kentta: KenttaModuuliArvot | undefined): 
     next.kostutus = rest;
   }
   if (next.kuivaus) {
-    const { asetusarvo, ...rest } = next.kuivaus;
+    const { asetusarvo, jalkilammitys, ...rest } = next.kuivaus;
     put(mitt, 'kuivausAsetus', asetusarvo);
+    put(mitt, 'jalkilammitys', jalkilammitys);
     next.kuivaus = rest;
   }
   if (Object.keys(mitt).length) next.vakMittaukset = mitt;

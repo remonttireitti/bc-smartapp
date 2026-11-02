@@ -231,7 +231,7 @@ export function RefrigerantCircuitComponentsModule({
   if (!hidePartRow) {
     return (
       <div className="huolto-circuit-part-module">
-        <h3 className="huolto-circuit-part-module-title">{koneikko ? 'Koneikon komponentit' : 'Ohjaus ja komponentit'}</h3>
+        <h3 className="huolto-circuit-part-module-title">{koneikko ? 'Koneikon komponentit' : 'Piirin komponentit'}</h3>
         {koneikko ? <KoneikkoComponentsForm data={data} onChange={onChange} /> : <CircuitComponentsForm
           circuitNumber={circuitNumber}
           data={data}

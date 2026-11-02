@@ -45,7 +45,7 @@ export function patchRefrigerantCircuitAtIndex(
 }
 
 export function refrigerantCircuitMeasurementsTitle(circuitNumber: number): string {
-  return `Piiri ${circuitNumber} — mittaukset`;
+  return `Piiri ${circuitNumber} — piirin mittaukset`;
 }
 
 export function refrigerantCircuitCompressorTitle(circuitNumber: number, compressorNumber: number): string {
@@ -56,5 +56,5 @@ export function refrigerantCircuitComponentsTitle(circuitNumber: number, laiteTy
   if (laiteTyyppi === 'pakastin' || laiteTyyppi === 'kylmäkoneikko') {
     return circuitNumber > 1 ? `Koneikon komponentit — piiri ${circuitNumber}` : 'Koneikon komponentit';
   }
-  return `Piiri ${circuitNumber} — ohjaus ja komponentit`;
+  return `Piiri ${circuitNumber} — piirin komponentit`;
 }

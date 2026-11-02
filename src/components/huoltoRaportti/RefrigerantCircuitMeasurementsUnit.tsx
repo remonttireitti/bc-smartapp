@@ -28,7 +28,7 @@ export function RefrigerantCircuitMeasurementsUnit({
   documentUnitKey,
   hidePartRow = false,
 }: Props) {
-  const title = `Mittaukset — piiri ${circuitNumber}`;
+  const title = `Piirin mittaukset — piiri ${circuitNumber}`;
   const status = circuitMeasurementsStatus(data);
   const subtitle = circuitMeasurementsSubtitle(data);
 

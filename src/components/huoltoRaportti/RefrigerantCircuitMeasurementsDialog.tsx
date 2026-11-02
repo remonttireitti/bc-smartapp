@@ -407,7 +407,7 @@ export function RefrigerantCircuitMeasurementsDialog({
   if (!printLayout) {
     return (
       <div className="huolto-circuit-part-module">
-        <h3 className="huolto-circuit-part-module-title">Mittaukset</h3>
+        <h3 className="huolto-circuit-part-module-title">Piirin mittaukset</h3>
         <CircuitMeasurementsFields
           data={data}
           onChange={onChange}

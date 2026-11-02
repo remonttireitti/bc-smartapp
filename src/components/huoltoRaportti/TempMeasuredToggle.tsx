@@ -23,15 +23,17 @@ export function TempMeasuredToggle({
   onChange,
   disabled,
   className = 'huolto-span-all',
+  label = 'Lämpötilat mitattu',
 }: {
   on: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
   className?: string;
+  label?: string;
 }) {
   return (
     <div className={`huolto-temp-measured-toggle no-print ${className}`.trim()}>
-      <ToggleSwitch label="Lämpötilat mitattu" checked={on} disabled={disabled} onChange={onChange} />
+      <ToggleSwitch label={label} checked={on} disabled={disabled} onChange={onChange} />
     </div>
   );
 }
