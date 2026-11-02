@@ -2,8 +2,9 @@ import { evaporatorWithLegacyOhjaus, fieldModuleDisplayValue, fieldModuleFieldVi
 import { koneikkoCustomComponents, koneikkoLegacyReadOnly, koneikkoView, usesKoneikkoComponents } from './koneikkoComponents';
 import { refrigerantCircuitComponentLabel } from './refrigerantCircuitComponents';
 import { airCapacity, evaporatorRoomTemp, formatKw, staticEvaporatorEstimate, staticInput } from './airCapacity';
-import { kokoonpanoLauhdutinLabel, kokoonpanoSummary, vjHeatingTitle } from './deviceKokoonpano';
+import { kokoonpanoLauhdutinLabel, kokoonpanoSummary, vakKokoonpanoPrintRows, vjHeatingTitle } from './deviceKokoonpano';
 import { fieldModuleValues, visibleFieldModules } from './fieldModules';
+import { nesteText } from './printMlp';
 import type {
   CompressorData,
   CondenserFanData,
@@ -24,7 +25,8 @@ import { renderCustomModulesPrintHtml } from './customModulePrintHtml';
 import { hideMaintenancePrintWarnings } from './defaults';
 import { expansionValveTypes, lauhdutinTypeLabel, LAUHDUTIN_PAINEVENTTIILI_LABEL, LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL } from './constants';
 import {
-  hasExternalNestelauhdutin,
+  isAirCondenserType,
+  isLiquidHeatExchangerCondenser,
   isChillerLikeDevice,
   isKonvektoritDevice,
   isSharedEvaporatorAcrossCircuits,
@@ -149,9 +151,14 @@ function renderFieldModules(data: HuoltoReportData): string {
     .map((def) => {
       const values = fieldModuleValues(data, def.id);
       const groups = new Map<string, string[]>();
+      const checks: string[] = [];
       for (const f of def.fields.filter((x) => fieldModuleFieldVisible(x, values, data))) {
         const v = fieldModuleDisplayValue(f, values);
         if (!v) continue;
+        if (f.type === 'toggle') {
+          checks.push(chk(f.label, true));
+          continue;
+        }
         const key = String((f as { section?: string }).section ?? '');
         const list = groups.get(key) ?? [];
         list.push(f.type === 'textarea' ? `<div class="note">${esc(f.label)}: ${esc(v)}</div>` : row(f.label, v));
@@ -159,7 +166,7 @@ function renderFieldModules(data: HuoltoReportData): string {
       }
       const inner = [...groups.entries()]
         .map(([title, items]) => (title ? blk(title, items) : kvGrid(items.join(''))))
-        .join('');
+        .join('') + (checks.length ? blk('Tarkastukset', checks) : '');
       return box(def.title, inner);
     })
     .join('');
@@ -277,8 +284,9 @@ function renderCircuitHtml(
   }
 
   const showMagnetValve = refrigerantCircuitHasMagnetValve(laiteTyyppi, kp.paisuntaventtiiliTyyppi);
-  const pvLabel =
-    expansionValveTypes.find((t) => t.value === kp.paisuntaventtiiliTyyppi)?.label ?? kp.paisuntaventtiiliTyyppi;
+  const pvLabel = kp.paisuntaventtiiliTyyppi
+    ? expansionValveTypes.find((t) => t.value === kp.paisuntaventtiiliTyyppi)?.label ?? kp.paisuntaventtiiliTyyppi
+    : '';
   const kv = usesKoneikkoComponents(laiteTyyppi) ? koneikkoView(kp) : null;
   const tiedot = kv
     ? blk('Tiedot', [
@@ -453,6 +461,8 @@ function renderCondensers(data: HuoltoReportData): string {
   if (!data.selectedModules.lauhdutin && data.laiteTyyppi !== 'pakastin' && data.laiteTyyppi !== 'kylmäkoneikko') {
     return '';
   }
+  // Nestekiertoinen lauhdutus (VJ/VAK): ilmalauhduttimen kenttiä ei kysytä eikä tulosteta (vesipiiri omassa osiossaan).
+  if (isChillerLikeDevice(data.laiteTyyppi) && !isAirCondenserType(data.lauhdutinTyyppiLaite)) return '';
   return data.condenserData
     .map((co, i) => {
       const tiedot = blk('Tiedot', [
@@ -497,11 +507,12 @@ function renderNestepiiriFields(piiri: NestepiiriData | LauhdutuspiiriData | und
   const lp = piiri as LauhdutuspiiriData;
   const body = [
     blk('Tiedot', [
-      row('Neste', piiri.neste),
+      row('Neste', nesteText(piiri.neste)),
       piiri.pumppuTarkastettu ? row('Pumpun valmistaja', piiri.pumppuValmistaja) : '',
       piiri.pumppuTarkastettu ? row('Pumpun malli', piiri.pumppuMalli) : '',
       piiri.paisuntaAstiaTarkistettu ? row('Paisunta-astian koko', piiri.paisuntaAstiaKoko, 'l') : '',
       'painesäätimenTarkistettu' in lp && lp.painesäätimenTarkistettu ? row(LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL, lp.painesäätimenMalli) : '',
+      'painesäätimenTarkistettu' in lp ? row('Lämmönsiirtimen kunto', lp.lmvKunto) : '',
       'painesäätimenTarkistettu' in lp && lp.virtausRiittävä === false && lp.virtausOngelma ? row('Virtausongelma', lp.virtausOngelma) : '',
     ]),
     blk('Mittaukset', [
@@ -509,6 +520,7 @@ function renderNestepiiriFields(piiri: NestepiiriData | LauhdutuspiiriData | und
       pair(['Menolämpötila', piiri.meno, '°C'], ['Paluulämpötila', piiri.tulo, '°C']),
       piiri.paisuntaAstiaTarkistettu ? pair(['Esipaine', piiri.paisuntaAstiaEsipaine, 'bar'], ['', '']) : '',
       piiri.paineTarkastettu ? pair(['Mitattu paine', piiri.paineBar, 'bar'], ['', '']) : '',
+      'painesäätimenTarkistettu' in lp && lp.painesäätimenTarkistettu ? pair(['Vesiventtiilin asetus', lp.vesiventtiiliAsetusBar, 'bar'], ['', '']) : '',
     ]),
     blk('Tarkastukset', [
       chk('Pumppu tarkastettu', piiri.pumppuTarkastettu),
@@ -518,7 +530,8 @@ function renderNestepiiriFields(piiri: NestepiiriData | LauhdutuspiiriData | und
       chk('Mutapussi puhdistettu', piiri.mutapussiPuhdistettu),
       chk('Toimilaitteet OK', piiri.toimilaitteetOK),
       'painesäätimenTarkistettu' in lp ? chk(LAUHDUTIN_PAINEVENTTIILI_LABEL, lp.painesäätimenTarkistettu) : '',
-      'painesäätimenTarkistettu' in lp ? chk('Virtaus riittävä', lp.virtausRiittävä !== false) : '',
+      'painesäätimenTarkistettu' in lp ? chk('Lämmönsiirrin puhdistettu', lp.lmvPuhdistettu) : '',
+      'painesäätimenTarkistettu' in lp && (piiri.tarkastusTila ?? status) ? chk('Virtaus riittävä', lp.virtausRiittävä !== false) : '',
     ]),
     renderInspectionHuomioRow(piiri.tarkastusHuomio, esc),
   ].join('');
@@ -569,7 +582,7 @@ function renderJaahdytysvesi(data: HuoltoReportData): string {
 }
 
 function renderLauhdutuspiiri(data: HuoltoReportData): string {
-  if (!data.selectedModules.lauhdutin || !hasExternalNestelauhdutin(data.lauhdutinTyyppiLaite)) return '';
+  if (!data.selectedModules.lauhdutin || !isLiquidHeatExchangerCondenser(data.lauhdutinTyyppiLaite)) return '';
   const inner = renderNestepiiriFields(data.lauhdutuspiiriData);
   if (!inner) return '';
   return box(vjHeatingTitle('Lauhdutuspiiri', data), inner);
@@ -842,7 +855,12 @@ export function generateMaintenanceReportHtml(
         row('Sijainti', data.laiteSijainti),
         row('Sarjanumero', data.laiteSarjanumero),
         row('Käyttötarkoitus', data.laiteKayttotarkoitus),
-        row('Kokoonpano', kokoonpanoSummary(data, kokoonpanoLauhdutinLabel(data))),
+        ...(data.laiteTyyppi === 'vakioilmastointtikone' && data.laiteKokoonpano
+          ? (() => {
+              const v = vakKokoonpanoPrintRows(data, kokoonpanoLauhdutinLabel(data));
+              return [row('Kokoonpano', v.kokoonpano), row('Toiminnot', v.toiminnot)];
+            })()
+          : [row('Kokoonpano', kokoonpanoSummary(data, kokoonpanoLauhdutinLabel(data)))]),
       ].join('');
 
   const refrigerantBox =

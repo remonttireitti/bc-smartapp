@@ -30,7 +30,7 @@ import type { NewCustomerDraft } from '../CustomerRegistryPicker';
 import type { NewEquipmentDraft } from '../EquipmentRegistryPicker';
 import type { ReportOwnerTarget } from '../../lib/huoltoRaportti/maintenanceReportBasicsValidation';
 import type { ModuleKey } from '../../lib/huoltoRaportti/constants';
-import { isChillerLikeDevice, usesRefrigerantServiceExtras } from '../../lib/huoltoRaportti/deviceModuleLogic';
+import { isWaterCooledChiller, usesRefrigerantServiceExtras } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import type { MaintenanceReportTabId } from '../../lib/huoltoRaportti/maintenanceReportTabs';
 import { isCustomModuleTabId, parseCustomModuleTabId } from '../../lib/huoltoRaportti/customModuleTypes';
 import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
@@ -287,7 +287,15 @@ export function MaintenanceReportTabContent({
     return (
       <section className="maintenance-report-tab-section huolto-modules-stack">
         <EvaporatorCircuitsSync form={form} onChange={onSyncForm} />
-        {!isChillerLikeDevice(form.laiteTyyppi) ? (
+        {form.laiteTyyppi === 'vakioilmastointtikone' && (parseInt(form.kylmaainePiireja, 10) || 1) > 1 ? (
+          <ToggleSwitch
+            className="form-toggle huolto-span-all"
+            label="Yhteinen höyrystin kaikille kylmäainepiireille"
+            checked={form.hoyrystinYhteinenPiireissa ?? true}
+            onChange={(checked) => onPatchForm({ hoyrystinYhteinenPiireissa: checked })}
+          />
+        ) : null}
+        {!isWaterCooledChiller(form.laiteTyyppi) ? (
           <EvaporatorsSection
             form={form}
             onChange={onPatchForm}

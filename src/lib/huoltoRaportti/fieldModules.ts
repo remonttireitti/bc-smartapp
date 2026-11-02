@@ -2,7 +2,7 @@
  * Kokoonpanon mukaan näytettävät kenttämoduulit (ohjaukset, kostutus, kuivaus, lämmitys-/jäähdytystoiminto).
  * Arvot: form.kenttaModuulit[moduuliId][kenttaId].
  */
-import { isKylmioDevice, vjHeatingEnabled, type KenttaModuuliArvot, type LaiteKokoonpano } from './deviceKokoonpano';
+import { isKylmioDevice, vakCoolingOn, vakHeatingOn, vjHeatingEnabled, type KenttaModuuliArvot, type LaiteKokoonpano } from './deviceKokoonpano';
 import type { MaintenanceTabCompletionState } from './maintenanceReportTabCompletion';
 
 export type FieldModuleId =
@@ -11,7 +11,10 @@ export type FieldModuleId =
   | 'lammitystoiminto'
   | 'mlpAktiivijaahdytys'
   | 'kostutus'
-  | 'kuivaus';
+  | 'kuivaus'
+  | 'lampotilansaato'
+  | 'ilmapuoli'
+  | 'vakOhjaus';
 
 type FieldExtras = {
   /** Väliotsikko, joka näytetään kun ryhmä vaihtuu. */
@@ -24,11 +27,15 @@ type FieldExtras = {
   legacy?: boolean;
   /** Lämpötilamittaus (ei asetus/hälytysraja): piilossa oletuksena, avataan "Lämpötilat mitattu" -kytkimellä. */
   measured?: boolean;
+  /** Kiinteä laitetieto: tallennetaan laitekorttiin ja esitäytetään uuteen raporttiin. */
+  fixed?: boolean;
 };
 export type FieldModuleField = FieldExtras & (
   | { id: string; label: string; type: 'text'; unit?: string; required?: boolean }
   | { id: string; label: string; type: 'select'; options: string[]; required?: boolean }
   | { id: string; label: string; type: 'textarea' }
+  /** Kytkin (tallennetaan arvona 'true' / tyhjä). */
+  | { id: string; label: string; type: 'toggle' }
   /** Paine (bar) ↔ höyrystymislämpötila (°C) kylmäaineen P-T-taulukosta; lämpötila tallennetaan tempId:hen. */
   | { id: string; label: string; type: 'pt'; tempId: string; required?: boolean });
 
@@ -147,30 +154,71 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
     ],
   },
   {
+    id: 'lampotilansaato',
+    title: 'Jäähdytys ja lämmitys',
+    isVisible: (form) => vakCoolingOn(form) || vakHeatingOn(form),
+    fields: [
+      { id: 'asetusarvo', label: 'Lämpötilan asetusarvo', type: 'text', unit: '°C' },
+      { id: 'saatoalue', label: 'Säätöalue / neutraalivyöhyke', type: 'text', unit: 'K' },
+      { id: 'jaahdytysToiminta', label: 'Jäähdytyksen toiminta', type: 'select', options: KUNTO, when: (_v, form) => vakCoolingOn(form) },
+      { id: 'lammitysToiminta', label: 'Lämmityksen toiminta', type: 'select', options: KUNTO, when: (_v, form) => vakHeatingOn(form) },
+      { id: 'lammitysVirta', label: 'Lämmitysvastusten virta', type: 'text', unit: 'A', when: (_v, form) => vakHeatingOn(form) && form.laiteKokoonpano?.vakLammitysTyyppi === 'sahko' },
+      { id: 'tuloIlma', label: 'Tuloilma', type: 'text', unit: '°C', measured: true },
+      { id: 'poistoIlma', label: 'Poistoilma', type: 'text', unit: '°C', measured: true },
+      { id: 'huomio', label: 'Huomiot', type: 'textarea' },
+    ],
+  },
+  {
     id: 'kostutus',
-    title: 'Kostutus (höyrysylinteri)',
+    title: 'Kostutus',
     isVisible: (form) => form.laiteTyyppi === 'vakioilmastointtikone' && form.laiteKokoonpano?.kostutus === true,
     fields: [
       { id: 'asetusarvo', label: 'Kostutuksen asetusarvo', type: 'text', unit: '%RH', required: true },
+      { id: 'saatoalue', label: 'Säätöalue / hystereesi', type: 'text', unit: '%RH' },
       { id: 'mitattu', label: 'Mitattu kosteus', type: 'text', unit: '%RH' },
-      { id: 'sylinteri', label: 'Höyrysylinteri', type: 'select', options: ['Kunnossa', 'Puhdistettu', 'Vaihdettu', 'Vika'], required: true },
+      { id: 'sylinteri', label: 'Höyrysylinterin kunto', type: 'select', options: ['Kunnossa', 'Puhdistettu', 'Vaihdettu', 'Vika'], required: true },
       { id: 'virta', label: 'Sylinterin virta', type: 'text', unit: 'A' },
-      { id: 'venttiilit', label: 'Täyttö- ja tyhjennysventtiilit', type: 'select', options: KUNTO },
+      { id: 'venttiilit', label: 'Vesiliitäntä ja tyhjennys', type: 'select', options: KUNTO },
       { id: 'johtokyky', label: 'Veden johtokyky', type: 'text', unit: 'µS/cm' },
       { id: 'huomio', label: 'Huomiot', type: 'textarea' },
     ],
   },
   {
     id: 'kuivaus',
-    title: 'Kuivaus (sähkövastukset)',
+    title: 'Kuivaus',
     isVisible: (form) => form.laiteTyyppi === 'vakioilmastointtikone' && form.laiteKokoonpano?.kuivaus === true,
     fields: [
       { id: 'asetusarvo', label: 'Kuivauksen asetusarvo', type: 'text', unit: '%RH' },
+      { id: 'toiminta', label: 'Kuivauksen toiminta', type: 'select', options: KUNTO },
       { id: 'jalkilammitys', label: 'Jälkilämmityksen asetusarvo', type: 'text', unit: '°C' },
       { id: 'virtaL1', label: 'Vastusten virta L1', type: 'text', unit: 'A' },
       { id: 'virtaL2', label: 'Vastusten virta L2', type: 'text', unit: 'A' },
       { id: 'virtaL3', label: 'Vastusten virta L3', type: 'text', unit: 'A' },
       { id: 'ylilampo', label: 'Ylilämpösuoja testattu', type: 'select', options: KUNTO, required: true },
+      { id: 'huomio', label: 'Huomiot', type: 'textarea' },
+    ],
+  },
+  {
+    id: 'ilmapuoli',
+    title: 'Ilmapuoli',
+    isVisible: (form) => form.laiteTyyppi === 'vakioilmastointtikone',
+    fields: [
+      { id: 'suodatinTyyppi', label: 'Suodattimien tyyppi', type: 'text', fixed: true },
+      { id: 'suodattimetVaihdettu', label: 'Suodattimet vaihdettu', type: 'toggle' },
+      { id: 'puhallin', label: 'Puhaltimen toiminta', type: 'select', options: KUNTO },
+      { id: 'puhallinVirta', label: 'Puhaltimen virta', type: 'text', unit: 'A' },
+      { id: 'kondenssivesi', label: 'Kondenssivesi / vesilukko', type: 'select', options: KUNTO },
+      { id: 'huomio', label: 'Huomiot', type: 'textarea' },
+    ],
+  },
+  {
+    id: 'vakOhjaus',
+    title: 'Ohjaus',
+    isVisible: (form) => form.laiteTyyppi === 'vakioilmastointtikone',
+    fields: [
+      { id: 'saadin', label: 'Säädin (valmistaja / malli)', type: 'text', fixed: true },
+      { id: 'halytyksetKuitattu', label: 'Hälytykset kuitattu', type: 'toggle' },
+      { id: 'halytykset', label: 'Hälytysten toiminta', type: 'select', options: KUNTO },
       { id: 'huomio', label: 'Huomiot', type: 'textarea' },
     ],
   },
@@ -231,13 +279,15 @@ export function fieldModuleFieldArchived(field: FieldModuleField, values: Record
 }
 
 export function fieldModuleFieldRequired(field: FieldModuleField, values: Record<string, string | boolean>, form: FieldModuleForm): boolean {
-  if (field.type === 'textarea') return false;
-  return field.requiredWhen ? field.requiredWhen(values, form) : !!field.required;
+  if (field.type === 'textarea' || field.type === 'toggle') return false;
+  return field.requiredWhen ? field.requiredWhen(values, form) : 'required' in field && !!field.required;
 }
 
 /** Kentän arvo tekstinä yksikköineen (tuloste, yhteenveto, vain luku). */
 export function fieldModuleDisplayValue(f: FieldModuleField, values: Record<string, string | boolean>): string {
-  const v = String(values[f.id] ?? '').trim();
+  const raw = values[f.id];
+  if (f.type === 'toggle') return raw === true || raw === 'true' ? 'Kyllä' : '';
+  const v = String(raw ?? '').trim();
   if (!v) return '';
   if (f.type === 'pt') {
     const t = String(values[f.tempId] ?? '').trim();

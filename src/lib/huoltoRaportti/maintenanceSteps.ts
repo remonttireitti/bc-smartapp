@@ -22,6 +22,7 @@ type GroupId =
   | 'yksikot'
   | 'lauhdutus'
   | 'hoyrystys'
+  | 'toiminnot'
   | 'konvektorit'
   | 'mittaukset'
   | 'lisat'
@@ -31,7 +32,7 @@ type GroupId =
  * Kaikilla laitetyypeillä sama järjestys: perustiedot → kylmäaine → kylmäainepiiri (kompressori)
  * → lauhdutus → höyrystys / keruu / jäähdytys / lämmitys → ohjaukset ja mittaukset → huomiot.
  */
-const ORDER: string[] = ['perustiedot', 'kylmaaine', 'piiri', 'yksikot', 'lauhdutus', 'hoyrystys', 'konvektorit', 'mittaukset', 'lisat', 'lopetus'];
+const ORDER: string[] = ['perustiedot', 'kylmaaine', 'piiri', 'yksikot', 'lauhdutus', 'hoyrystys', 'toiminnot', 'konvektorit', 'mittaukset', 'lisat', 'lopetus'];
 
 /** Lauhdutuspuolen moduulit (nestekiertoisen koneen latauspiiri mukaan lukien). */
 function isCondenserSide(entry: MaintenanceDocumentEntry): boolean {
@@ -57,7 +58,8 @@ function groupOf(entry: MaintenanceDocumentEntry): GroupId {
   if (id === 'konvektorit') return 'konvektorit';
   if (entry.kind === 'mlpUnit') return entry.mlpUnitId === 'energia' ? 'mittaukset' : 'hoyrystys';
   if (['jaahdytysvesi', 'vapaajahdytys', 'kiinteistoJahdytys', 'mlp'].includes(id)) return 'hoyrystys';
-  if (['ohjaukset', 'kylmioMittaukset', 'lammitystoiminto', 'mlpAktiivijaahdytys', 'kostutus', 'kuivaus', 'energia'].includes(id)) return 'mittaukset';
+  if (['kostutus', 'kuivaus', 'lampotilansaato', 'ilmapuoli', 'vakOhjaus'].includes(id)) return 'toiminnot';
+  if (['ohjaukset', 'kylmioMittaukset', 'lammitystoiminto', 'mlpAktiivijaahdytys', 'energia'].includes(id)) return 'mittaukset';
   if (id === 'huomiot' || id === 'huoltotiedot') return 'lopetus';
   return 'lisat';
 }
@@ -76,6 +78,7 @@ function groupTitle(id: string, entries: MaintenanceDocumentEntry[], circuitCoun
     return laiteTyyppi === 'mlp' || laiteTyyppi === 'vesiilmalampopumppu' ? 'Keruu ja lämmitys' : 'Jäähdytys';
   }
   if (id === 'yksikot') return entries.length > 1 ? 'Ulko- ja sisäyksiköt' : stripSectionNumber(entries[0].title);
+  if (id === 'toiminnot') return 'Toiminnot';
   if (id === 'konvektorit') return 'Konvektorit';
   if (id === 'mittaukset') {
     const hasOhjaus = entries.some((e) => e.tabId === 'ohjaukset');

@@ -2,6 +2,7 @@ import type { HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { type FieldModuleField, fieldModuleDisplayValue, fieldModuleFieldArchived, fieldModuleFieldRequired, fieldModuleFieldVisible, fieldModuleValues, findFieldModule } from '../../lib/huoltoRaportti/fieldModules';
 import { getPressureFromSaturationTemp, getSaturationTempFromPressure, hasRefrigerantPtData } from '../../lib/huoltoRaportti/refrigerantPt';
 import { FormInput } from './FormInput';
+import ToggleSwitch from '../ToggleSwitch';
 import { TempMeasuredToggle, useTempMeasured } from './TempMeasuredToggle';
 
 type Props = {
@@ -56,6 +57,18 @@ export function FieldModuleSection({ moduleId, form, onPatchForm }: Props) {
 
   function renderField(field: FieldModuleField, required: boolean) {
         const value = typeof values[field.id] === 'string' ? (values[field.id] as string) : '';
+        if (field.type === 'toggle') {
+          const on = values[field.id] === true || values[field.id] === 'true';
+          return (
+            <ToggleSwitch
+              key={field.id}
+              className="form-toggle huolto-span-all"
+              label={field.label}
+              checked={on}
+              onChange={(next) => patch(field.id, next ? 'true' : '')}
+            />
+          );
+        }
         if (field.type === 'select') {
           return (
             <label key={field.id}>

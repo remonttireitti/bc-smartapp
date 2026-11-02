@@ -31,6 +31,7 @@ export function LauhdutuspiiriSection({ form, onChange }: Props) {
         onChange={patch}
         showLauhdutinTarkistukset
         showPiiriTarkistukset
+        showVakLauhdutus={form.laiteTyyppi === 'vakioilmastointtikone'}
         documentModuleKey={documentLayout ? 'lauhdutuspiiri' : undefined}
       />
     </>

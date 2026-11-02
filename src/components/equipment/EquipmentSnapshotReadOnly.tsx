@@ -21,6 +21,7 @@ import {
   nonEmpty,
   showSisayksikotInSnapshot,
   snapVal,
+  vakKokoonpanoRows,
   type ParsedEquipmentSnapshot,
 } from '../../lib/huoltoRaportti/equipmentSnapshotDisplay';
 
@@ -121,8 +122,15 @@ export default function EquipmentSnapshotReadOnly({ snapshot, sections, hideSect
     );
   }
 
+  const kokoonpanoRows = vakKokoonpanoRows(snapshot);
+
   return (
     <div className="equipment-snapshot-root">
+      {showSection('kokoonpano') && kokoonpanoRows.length > 0 ? (
+        <Section title="Kokoonpano" hideTitle={hideSectionTitles}>
+          {kokoonpanoRows.map((r) => <DetailRow key={r.label} label={r.label} value={r.value} />)}
+        </Section>
+      ) : null}
       {showSection('kylmaaine') ? (
       <Section title="Käyttötarkoitus ja kylmäaine" hideTitle={hideSectionTitles}>
         <OptionalRow label="Käyttötarkoitus" value={snapshot.laiteKayttotarkoitus} />

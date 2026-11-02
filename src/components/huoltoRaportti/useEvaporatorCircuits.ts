@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import type { EvaporatorData, HuoltoReportData } from '../../lib/huoltoRaportti/types';
 import { createEmptyEvaporatorData } from '../../lib/huoltoRaportti/defaults';
 import { isChillerLikeDevice, isSharedEvaporatorAcrossCircuits } from '../../lib/huoltoRaportti/deviceModuleLogic';
-import { getEvaporatorCircuitCount, kylmioEvaporatorTitle } from '../../lib/huoltoRaportti/evaporatorHelpers';
+import { getEvaporatorCircuitCount, kylmioEvaporatorTitle, normalizeEvaporatorForDevice } from '../../lib/huoltoRaportti/evaporatorHelpers';
 import { hoyrystinUnitTitle } from '../../lib/huoltoRaportti/sectionTitles';
 
 export function evaporatorTitleForIndex(form: HuoltoReportData, index: number): string {
@@ -93,6 +93,7 @@ export function useEvaporatorCircuitsSync(
   onChangeRef.current = onChange;
 
   const isKylmakoneikko = form.laiteTyyppi === 'kylmäkoneikko';
+  const isVak = form.laiteTyyppi === 'vakioilmastointtikone';
   const circuitCount = getEvaporatorCircuitCount(form);
   const sharedEvaporator = isSharedEvaporatorAcrossCircuits(
     form.laiteTyyppi,
@@ -117,6 +118,14 @@ export function useEvaporatorCircuitsSync(
       patch.evaporatorData = evaporators.slice(0, circuitCount);
     }
 
+    if (isVak) {
+      const fixed = (patch.evaporatorData ?? evaporators).map((ev) => normalizeEvaporatorForDevice(ev, form.laiteTyyppi));
+      if (fixed.some((ev, i) => ev !== (patch.evaporatorData ?? evaporators)[i])) {
+        patch.evaporatorData = fixed;
+        evaporators = fixed;
+      }
+    }
+
     const targetEvaporators = patch.evaporatorData ?? evaporators;
     if (targetEvaporators.length !== flags.length) {
       const next = flags.slice(0, circuitCount);
@@ -129,6 +138,8 @@ export function useEvaporatorCircuitsSync(
   }, [
     circuitCount,
     isKylmakoneikko,
+    isVak,
+    form.laiteTyyppi,
     form.hoyrystimienMaara,
     sharedEvaporator,
     form.evaporatorData,

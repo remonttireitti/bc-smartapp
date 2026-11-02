@@ -19,9 +19,47 @@ export type LaiteKokoonpano = {
   kostutus?: boolean;
   /** Vakioilmastointikone: kuivaus / jälkilämmitys sähkövastuksilla. */
   kuivaus?: boolean;
+  /** Vakioilmastointikone: jäähdytystoiminto (puuttuva arvo = käytössä). */
+  vakJaahdytys?: boolean;
+  /** Vakioilmastointikone: lämmitystoiminto. */
+  vakLammitys?: boolean;
+  /** Vakioilmastointikone: lämmityksen tyyppi. */
+  vakLammitysTyyppi?: VakLammitysTyyppi;
+  /** Vakioilmastointikone: sähkölämmityksen teho (kW). */
+  vakLammitysKw?: string;
+  /** Vakioilmastointikone: kostuttimen tyyppi. */
+  vakKostutinTyyppi?: VakKostutinTyyppi;
+  /** Vakioilmastointikone: kostuttimen malli. */
+  vakKostutinMalli?: string;
+  /** Vakioilmastointikone: kuivauksen sähkövastusten teho (kW). */
+  vakKuivausKw?: string;
+  /** Vakioilmastointikone: lauhdutusveden venttiilin tyyppi (vesilauhdutus). */
+  vakVesiventtiili?: VakVesiventtiili;
   /** Ilmalämpöpumppu: järjestelmätyyppi. */
   ilpJarjestelma?: IlpJarjestelma;
 };
+
+export type VakLammitysTyyppi = '' | 'sahko' | 'vesi';
+export type VakKostutinTyyppi = '' | 'hoyrysylinteri' | 'elektrodi' | 'muu';
+export type VakVesiventtiili = '' | 'paineohjattu' | 'moottori';
+
+export const vakLammitysTyyppiOptions: { value: VakLammitysTyyppi; label: string }[] = [
+  { value: 'sahko', label: 'Sähkövastukset' },
+  { value: 'vesi', label: 'Vesipatteri' },
+];
+export const vakKostutinTyyppiOptions: { value: VakKostutinTyyppi; label: string }[] = [
+  { value: 'hoyrysylinteri', label: 'Höyrysylinteri' },
+  { value: 'elektrodi', label: 'Elektrodikostutin' },
+  { value: 'muu', label: 'Muu' },
+];
+export const vakVesiventtiiliOptions: { value: VakVesiventtiili; label: string }[] = [
+  { value: 'paineohjattu', label: 'Paineohjattu' },
+  { value: 'moottori', label: 'Moottoriventtiili' },
+];
+
+function optLabel<T extends string>(opts: { value: T; label: string }[], value: T | undefined): string {
+  return opts.find((o) => o.value === value)?.label ?? '';
+}
 
 export type KenttaModuuliArvot = Record<string, Record<string, string | boolean>>;
 
@@ -73,7 +111,7 @@ export function defaultLaiteKokoonpano(laiteTyyppi: string): LaiteKokoonpano | u
     case 'mlp':
       return { mlpJaahdytys: '' };
     case 'vakioilmastointtikone':
-      return { vakKylmaainepiiri: true, kostutus: false, kuivaus: false };
+      return { vakKylmaainepiiri: true, kostutus: false, kuivaus: false, vakJaahdytys: true, vakLammitys: false };
     case 'lämpöpumppu':
       return { ilpJarjestelma: '' };
     case 'pakastin':
@@ -88,6 +126,37 @@ export function defaultLaiteKokoonpano(laiteTyyppi: string): LaiteKokoonpano | u
 export function vakHasRefrigerant(form: KokoonpanoForm): boolean {
   if (form.laiteTyyppi !== 'vakioilmastointtikone') return true;
   return form.laiteKokoonpano?.vakKylmaainepiiri !== false;
+}
+
+/** VAK: jäähdytys käytössä (oletus kyllä; vanhoissa raporteissa kenttä puuttuu). */
+export function vakCoolingOn(form: KokoonpanoForm): boolean {
+  return form.laiteTyyppi === 'vakioilmastointtikone' && form.laiteKokoonpano?.vakJaahdytys !== false;
+}
+
+/** VAK: lämmitys käytössä. */
+export function vakHeatingOn(form: KokoonpanoForm): boolean {
+  return form.laiteTyyppi === 'vakioilmastointtikone' && form.laiteKokoonpano?.vakLammitys === true;
+}
+
+/** VAK: lyhyet toimintojen nimet (jäähdytys, lämmitys, kostutus, kuivaus). */
+export function vakFunctionLabels(k: LaiteKokoonpano | undefined): string[] {
+  const out: string[] = [];
+  if (k?.vakJaahdytys !== false) out.push('Jäähdytys');
+  if (k?.vakLammitys) {
+    const t = optLabel(vakLammitysTyyppiOptions, k.vakLammitysTyyppi).toLowerCase();
+    const kw = k.vakLammitysKw?.trim();
+    out.push(`Lämmitys${t || kw ? ` (${[t, kw ? `${kw} kW` : ''].filter(Boolean).join(', ')})` : ''}`);
+  }
+  if (k?.kostutus) {
+    const t = optLabel(vakKostutinTyyppiOptions, k.vakKostutinTyyppi).toLowerCase();
+    const m = k.vakKostutinMalli?.trim();
+    out.push(`Kostutus${t || m ? ` (${[t, m].filter(Boolean).join(', ')})` : ''}`);
+  }
+  if (k?.kuivaus) {
+    const kw = k.vakKuivausKw?.trim();
+    out.push(`Kuivaus${kw ? ` (${kw} kW)` : ''}`);
+  }
+  return out;
 }
 
 /** VAK, jonka kokoonpano on valittu: kiinteistöpiiri/energia eivät kuulu (suora höyrystys tai vain jäähdytyspiiri). */
@@ -122,6 +191,20 @@ export function ilpSisayksikkoChoices(jarjestelma: IlpJarjestelma | undefined): 
   return [1, 2, 3, 4, 5];
 }
 
+/** VAK: tulosteen kaksi riviä — rakenne (lauhdutus, höyrystys, venttiili) ja toiminnot. */
+export function vakKokoonpanoPrintRows(form: KokoonpanoForm, lauhdutinLabel?: string): { kokoonpano: string; toiminnot: string } {
+  const k = form.laiteKokoonpano;
+  const parts: string[] = [];
+  if (k?.vakKylmaainepiiri === false) parts.push('Ei kylmäainepiiriä (nestekiertoinen jäähdytys)');
+  else {
+    if (lauhdutinLabel) parts.push(lauhdutinLabel);
+    parts.push('suora höyrystys');
+  }
+  const valve = optLabel(vakVesiventtiiliOptions, k?.vakVesiventtiili);
+  if (valve) parts.push(`vesiventtiili: ${valve.toLowerCase()}`);
+  return { kokoonpano: parts.join(' · '), toiminnot: vakFunctionLabels(k).join(' · ') };
+}
+
 export function kokoonpanoSummary(form: KokoonpanoForm & { lauhdutinTyyppiLaite?: string }, lauhdutinLabel?: string): string {
   const k = form.laiteKokoonpano;
   const parts: string[] = [];
@@ -139,6 +222,13 @@ export function kokoonpanoSummary(form: KokoonpanoForm & { lauhdutinTyyppiLaite?
   if (form.laiteTyyppi === 'mlp') {
     const opt = mlpJaahdytysOptions.find((o) => o.value === k?.mlpJaahdytys);
     if (opt) parts.push(opt.label);
+  }
+  if (form.laiteTyyppi === 'vakioilmastointtikone') {
+    if (k?.vakKylmaainepiiri !== false) parts.push('Suora höyrystys');
+    const valve = optLabel(vakVesiventtiiliOptions, k?.vakVesiventtiili);
+    if (valve) parts.push(`Vesiventtiili: ${valve.toLowerCase()}`);
+    parts.push(...vakFunctionLabels(k));
+    return parts.join(' · ');
   }
   if (k?.kostutus) parts.push('Kostutus');
   if (k?.kuivaus) parts.push('Kuivaus');

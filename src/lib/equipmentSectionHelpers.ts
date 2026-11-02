@@ -12,6 +12,7 @@ import {
   mlpSnapshotSectionHasContent,
   nestelauhdutinRegistryUnitIsMeaningful,
   showSisayksikotInSnapshot,
+  vakKokoonpanoRows,
 } from './huoltoRaportti/equipmentSnapshotDisplay';
 
 export const EQUIPMENT_SECTION_COLORS = {
@@ -21,6 +22,7 @@ export const EQUIPMENT_SECTION_COLORS = {
 } as const;
 
 export const EQUIPMENT_SNAPSHOT_SECTION_COLORS = {
+  kokoonpano: '#0F766E',
   kylmaaine: '#0D9488',
   piirit: '#7C3AED',
   ulkoyksikko: '#6366F1',
@@ -76,6 +78,16 @@ export function getEquipmentSnapshotSections(snapshot: ParsedEquipmentSnapshot):
       });
     }
     return sections;
+  }
+
+  const kokoonpanoRows = vakKokoonpanoRows(snapshot);
+  if (kokoonpanoRows.length > 0) {
+    sections.push({
+      id: 'kokoonpano',
+      title: 'Kokoonpano',
+      subtitle: kokoonpanoRows.map((r) => r.label).slice(0, 3).join(' · '),
+      color: EQUIPMENT_SNAPSHOT_SECTION_COLORS.kokoonpano,
+    });
   }
 
   const refrigerant = [
