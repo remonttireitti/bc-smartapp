@@ -17,11 +17,17 @@ export function stripSectionNumber(title: string): string {
 
 type GroupId =
   | 'perustiedot'
+  | 'kokoonpano'
   | 'kylmaaine'
   | `piiri:${number}`
   | 'yksikot'
   | 'lauhdutus'
   | 'hoyrystys'
+  | 'vesikenno'
+  | 'kostutus'
+  | 'kuivlamm'
+  | 'ilmapuoli'
+  | 'vakohjaus'
   | 'toiminnot'
   | 'konvektorit'
   | 'mittaukset'
@@ -32,7 +38,14 @@ type GroupId =
  * Kaikilla laitetyypeillä sama järjestys: perustiedot → kylmäaine → kylmäainepiiri (kompressori)
  * → lauhdutus → höyrystys / keruu / jäähdytys / lämmitys → ohjaukset ja mittaukset → huomiot.
  */
-const ORDER: string[] = ['perustiedot', 'kylmaaine', 'piiri', 'yksikot', 'lauhdutus', 'hoyrystys', 'toiminnot', 'konvektorit', 'mittaukset', 'lisat', 'lopetus'];
+/**
+ * VAK (CRAC / close control): perustiedot → kokoonpano → kylmäaine → piirit → höyrystin (DX) / vesikenno
+ * → lauhdutin → ilmapuoli (puhallin, suodattimet, kondenssi) → kostutus → kuivaus/lämmitys
+ * → mittaukset ja asetusarvot → ohjaus ja hälytykset → huomiot.
+ */
+const VAK_ORDER: string[] = ['perustiedot', 'kokoonpano', 'kylmaaine', 'piiri', 'yksikot', 'hoyrystys', 'vesikenno', 'lauhdutus', 'ilmapuoli', 'kostutus', 'kuivlamm', 'mittaukset', 'vakohjaus', 'lisat', 'lopetus'];
+
+const ORDER: string[] = ['perustiedot', 'kokoonpano', 'kylmaaine', 'piiri', 'yksikot', 'lauhdutus', 'hoyrystys', 'toiminnot', 'konvektorit', 'mittaukset', 'lisat', 'lopetus'];
 
 /** Lauhdutuspuolen moduulit (nestekiertoisen koneen latauspiiri mukaan lukien). */
 function isCondenserSide(entry: MaintenanceDocumentEntry): boolean {
@@ -47,7 +60,8 @@ function isCondenserSide(entry: MaintenanceDocumentEntry): boolean {
 
 function groupOf(entry: MaintenanceDocumentEntry): GroupId {
   const id = entry.tabId;
-  if (id === 'raportointi' || id === 'kokoonpano') return 'perustiedot';
+  if (id === 'raportointi') return 'perustiedot';
+  if (id === 'kokoonpano') return 'kokoonpano';
   if (id === 'kylmaaine' || id === 'tiiveyskoe' || id === 'tyhjiointi') return 'kylmaaine';
   if (id.startsWith('kylmaainePiiri')) return `piiri:${entry.unitIndex ?? 0}`;
   if (isCondenserSide(entry)) return 'lauhdutus';
@@ -57,8 +71,13 @@ function groupOf(entry: MaintenanceDocumentEntry): GroupId {
   }
   if (id === 'konvektorit') return 'konvektorit';
   if (entry.kind === 'mlpUnit') return entry.mlpUnitId === 'energia' ? 'mittaukset' : 'hoyrystys';
-  if (['jaahdytysvesi', 'vapaajahdytys', 'kiinteistoJahdytys', 'mlp', 'vesikenno'].includes(id)) return 'hoyrystys';
-  if (['kostutus', 'kuivaus', 'lampotilansaato', 'ilmapuoli', 'vakOhjaus'].includes(id)) return 'toiminnot';
+  if (['jaahdytysvesi', 'vapaajahdytys', 'kiinteistoJahdytys', 'mlp'].includes(id)) return 'hoyrystys';
+  if (id === 'vesikenno') return 'vesikenno';
+  // VAK: ei yleistä "Toiminnot"-vaihetta — jokainen kenttä kysytään omassa loogisessa moduulissaan.
+  if (id === 'kostutus' || id === 'ilmapuoli') return id;
+  if (id === 'kuivaus' || id === 'lammitys') return 'kuivlamm';
+  if (id === 'vakMittaukset') return 'mittaukset';
+  if (id === 'vakOhjaus') return 'vakohjaus';
   if (['ohjaukset', 'kylmioMittaukset', 'lammitystoiminto', 'mlpAktiivijaahdytys', 'energia'].includes(id)) return 'mittaukset';
   if (id === 'huomiot' || id === 'huoltotiedot') return 'lopetus';
   return 'lisat';
@@ -66,6 +85,7 @@ function groupOf(entry: MaintenanceDocumentEntry): GroupId {
 
 function groupTitle(id: string, entries: MaintenanceDocumentEntry[], circuitCount: number, laiteTyyppi?: string): string {
   if (id === 'perustiedot') return 'Perustiedot';
+  if (id === 'kokoonpano') return 'Kokoonpano';
   if (id === 'kylmaaine') return 'Kylmäaine';
   if (id.startsWith('piiri:')) return circuitCount > 1 ? `Piiri ${Number(id.slice(6)) + 1}` : 'Kylmäainepiiri';
   if (id === 'lauhdutus') {
@@ -78,9 +98,19 @@ function groupTitle(id: string, entries: MaintenanceDocumentEntry[], circuitCoun
     return laiteTyyppi === 'mlp' || laiteTyyppi === 'vesiilmalampopumppu' ? 'Keruu ja lämmitys' : 'Jäähdytys';
   }
   if (id === 'yksikot') return entries.length > 1 ? 'Ulko- ja sisäyksiköt' : stripSectionNumber(entries[0].title);
+  if (id === 'vesikenno') return 'Jäähdytysvesikenno';
+  if (id === 'kostutus') return 'Kostutus';
+  if (id === 'kuivlamm') {
+    const hasDry = entries.some((e) => e.tabId === 'kuivaus');
+    const hasHeat = entries.some((e) => e.tabId === 'lammitys');
+    return hasDry && hasHeat ? 'Kuivaus ja lämmitys' : hasHeat ? 'Lämmitys' : 'Kuivaus';
+  }
+  if (id === 'vakohjaus') return 'Ohjaus ja hälytykset';
+  if (id === 'ilmapuoli') return 'Ilmapuoli';
   if (id === 'toiminnot') return 'Toiminnot';
   if (id === 'konvektorit') return 'Konvektorit';
   if (id === 'mittaukset') {
+    if (entries.some((e) => e.tabId === 'vakMittaukset')) return 'Mittaukset';
     const hasOhjaus = entries.some((e) => e.tabId === 'ohjaukset');
     return hasOhjaus && entries.length > 1 ? 'Ohjaus ja mittaukset' : hasOhjaus ? 'Ohjaukset' : 'Mittaukset';
   }
@@ -96,7 +126,8 @@ export function buildMaintenanceSteps(entries: MaintenanceDocumentEntry[], laite
     map.get(id)!.push(index);
   });
   const circuitCount = [...map.keys()].filter((k) => k.startsWith('piiri:')).length;
-  const rank = (k: string) => ORDER.indexOf(k.startsWith('piiri:') ? 'piiri' : k) * 100 + (k.startsWith('piiri:') ? Number(k.slice(6)) : 0);
+  const order = laiteTyyppi === 'vakioilmastointtikone' ? VAK_ORDER : ORDER;
+  const rank = (k: string) => order.indexOf(k.startsWith('piiri:') ? 'piiri' : k) * 100 + (k.startsWith('piiri:') ? Number(k.slice(6)) : 0);
   return [...map.entries()]
     .sort((a, b) => rank(a[0]) - rank(b[0]))
     .map(([key, entryIndexes]) => ({

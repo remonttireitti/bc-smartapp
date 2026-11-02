@@ -16,6 +16,8 @@ type Props = {
   registryMessage?: string | null;
   copySiblingMode: boolean;
   onApply: (draft: HuoltoReportData) => boolean;
+  /** Tallentaa kirjoitetut tiedot lomakkeelle jo kirjoitettaessa (ilman validointia), ettei mikään jää vain dialogin luonnokseen. */
+  onDraftChange?: (draft: HuoltoReportData) => void;
   onDeviceTypeSelect: (deviceType: string) => void;
   onClose: () => void;
 };
@@ -27,6 +29,7 @@ export function MaintenanceDeviceDialog({
   registryMessage,
   copySiblingMode,
   onApply,
+  onDraftChange,
   onDeviceTypeSelect,
   onClose,
 }: Props) {
@@ -36,6 +39,12 @@ export function MaintenanceDeviceDialog({
   useEffect(() => {
     if (open) setDraft(form);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !onDraftChange) return;
+    const timer = window.setTimeout(() => onDraftChange(draft), 500);
+    return () => window.clearTimeout(timer);
+  }, [open, draft]);
 
   const patchDraft = (patch: Partial<HuoltoReportData>) => setDraft((prev) => ({ ...prev, ...patch }));
   // ILP: malli ja sarjanumero ovat ulkoyksikön tiedot — yksi kenttä, synkronoidaan molempiin.

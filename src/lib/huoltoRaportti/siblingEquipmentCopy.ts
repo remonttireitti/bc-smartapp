@@ -12,6 +12,58 @@ import { huoltoPerformerFields } from './performerFromProfile';
 import type { HuoltoReportData } from './types';
 import type { SubscriberPortalVisibility } from '../subscriberPortalVisibility';
 
+/** Lähdelaitteen rekisteritiedot: totuus silloin, kun lähdepöytäkirjan kentissä on "—" tai tyhjää. */
+export type SourceEquipmentIdentity = {
+  tag: string;
+  manufacturer: string;
+  model: string;
+  location: string;
+  kayttotarkoitus: string;
+};
+
+export async function loadSourceEquipmentIdentity(
+  supabase: SupabaseClient,
+  equipmentId: string | null | undefined,
+): Promise<SourceEquipmentIdentity | null> {
+  if (!equipmentId) return null;
+  const { data } = await supabase
+    .from('equipment')
+    .select('name, tag, model, manufacturer, location, huolto_technical_snapshot')
+    .eq('id', equipmentId)
+    .maybeSingle();
+  if (!data) return null;
+  const row = data as {
+    name?: string | null;
+    tag?: string | null;
+    model?: string | null;
+    manufacturer?: string | null;
+    location?: string | null;
+    huolto_technical_snapshot?: { laiteKayttotarkoitus?: unknown } | null;
+  };
+  return {
+    tag: realIdentityValue(row.tag) || realIdentityValue(row.name),
+    manufacturer: realIdentityValue(row.manufacturer),
+    model: realIdentityValue(row.model),
+    location: realIdentityValue(row.location),
+    kayttotarkoitus: realIdentityValue(row.huolto_technical_snapshot?.laiteKayttotarkoitus),
+  };
+}
+
+/** Täyttää puuttuvat/"—" Valmistaja, Malli, Sijainti ja Käyttötarkoitus lähdelaitteen rekisteritiedoista. */
+export function fillIdentityFromSourceEquipment(
+  form: HuoltoReportData,
+  identity: SourceEquipmentIdentity | null,
+): HuoltoReportData {
+  if (!identity) return form;
+  return {
+    ...form,
+    laiteValmistaja: realIdentityValue(form.laiteValmistaja) || identity.manufacturer,
+    laiteMalli: realIdentityValue(form.laiteMalli) || identity.model,
+    laiteSijainti: realIdentityValue(form.laiteSijainti) || identity.location,
+    laiteKayttotarkoitus: realIdentityValue(form.laiteKayttotarkoitus) || identity.kayttotarkoitus,
+  };
+}
+
 export type SiblingEquipmentCopyInput = {
   tunnus: string;
   sarjanumero: string;

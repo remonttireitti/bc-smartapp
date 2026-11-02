@@ -51,13 +51,6 @@ export function MaintenanceDeviceSummary({
         {printRow('Tunnus', form.laiteTunnus || '')}
         {printRow('Sarjanumero', form.laiteSarjanumero || '')}
         {printRow('Sijainti', form.laiteSijainti || '')}
-        {(form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu') &&
-          printRow(
-            'Kylmäaine',
-            [form.kylmaaineTyyppi, form.kylmaainePiireja ? `${form.kylmaainePiireja} piiriä` : '']
-              .filter(Boolean)
-              .join(' · '),
-          )}
       </>
     )
   ) : (
@@ -153,15 +146,6 @@ export function MaintenanceDeviceSummary({
                 <span className="info-label">Sijainti</span>
                 <strong>{form.laiteSijainti || '—'}</strong>
               </div>
-              {(form.selectedModules.kylmaainePiiri || form.laiteTyyppi === 'lämpöpumppu') && (
-                <div className="info-box">
-                  <span className="info-label">Kylmäaine</span>
-                  <strong>{form.kylmaaineTyyppi || '—'}</strong>
-                  {form.kylmaainePiireja ? (
-                    <span className="muted">{form.kylmaainePiireja} piiriä</span>
-                  ) : null}
-                </div>
-              )}
             </>
           )}
         </div>
