@@ -82,7 +82,6 @@ import {
   type ModuleKey,
 } from '../lib/huoltoRaportti/constants';
 import {
-  getManualModuleOptions,
   isChillerLikeDevice,
   isKonvektoritDevice,
   isLiquidCondenserType,
@@ -571,11 +570,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     media.addEventListener('change', syncMoreActions);
     return () => media.removeEventListener('change', syncMoreActions);
   }, []);
-
-  const optionalMaintenanceModules = useMemo(
-    () => getManualModuleOptions(form.laiteTyyppi).filter((opt) => opt.key === 'tiiveyskoe' || opt.key === 'tyhjiointi'),
-    [form.laiteTyyppi],
-  );
 
   const persistDraftLocally = useCallback(
     (nextForm: HuoltoReportData) => {
@@ -2145,7 +2139,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     isVj,
     lampopumppuParts,
     pendingModuleKeys,
-    optionalMaintenanceModules,
     moduleLabel,
     printBusy,
     reportOwnerCompanyId,
@@ -2211,7 +2204,6 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     onKokoonpanoChange,
     onPrintKonvektoriFaults: hasFaultyKonvektorit ? () => void openKonvektoriFaultPrint() : undefined,
     patchCustomModuleValues,
-    toggleModule,
   };
 
   const linkedEquipment = equipmentId ? equipment.find((entry) => entry.id === equipmentId) : undefined;
