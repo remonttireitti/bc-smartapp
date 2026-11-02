@@ -28,9 +28,13 @@ interface Props {
   onChange: (patch: Partial<Data>) => void;
   showLauhdutinTarkistukset?: boolean;
   showPiiriTarkistukset?: boolean;
+  /** Vakioilmastointikone: vesiventtiilin asetus ja koneen sisäisen lämmönsiirtimen kunto. */
+  showVakLauhdutus?: boolean;
 }
 
-export function NestepiiriFields({ data, onChange, showLauhdutinTarkistukset, showPiiriTarkistukset }: Props) {
+const LMV_KUNTO_OPTIONS = ['Kunnossa', 'Likainen', 'Vika'];
+
+export function NestepiiriFields({ data, onChange, showLauhdutinTarkistukset, showPiiriTarkistukset, showVakLauhdutus }: Props) {
   const printLayout = useHuoltoPrintFormLayout();
   const temp = useTempMeasured(hasAnyValue(data.meno, data.tulo));
   const lauhdutus = showLauhdutinTarkistukset && isLauhdutuspiiri(data) ? data : null;
@@ -285,6 +289,30 @@ export function NestepiiriFields({ data, onChange, showLauhdutinTarkistukset, sh
                 value={lauhdutus.painesäätimenMalli}
                 onChange={(v) => onChange({ painesäätimenMalli: v })}
               />
+            )}
+            {showVakLauhdutus && lauhdutus.painesäätimenTarkistettu && (
+              <FormInput
+                label="Vesiventtiilin asetus (bar)"
+                type="number"
+                value={lauhdutus.vesiventtiiliAsetusBar ?? ''}
+                onChange={(v) => onChange({ vesiventtiiliAsetusBar: v })}
+              />
+            )}
+            {showVakLauhdutus && (
+              <>
+                <FormCheckbox
+                  label="Lämmönsiirrin puhdistettu"
+                  checked={lauhdutus.lmvPuhdistettu === true}
+                  onChange={(v) => onChange({ lmvPuhdistettu: v })}
+                />
+                <label>
+                  Lämmönsiirtimen kunto
+                  <select value={lauhdutus.lmvKunto ?? ''} onChange={(e) => onChange({ lmvKunto: e.target.value })}>
+                    <option value="">Valitse…</option>
+                    {LMV_KUNTO_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </label>
+              </>
             )}
             <FormCheckbox
               label="Virtaus riittävä"

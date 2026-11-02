@@ -4,12 +4,17 @@ import {
   ilpSisayksikkoChoices,
   mlpJaahdytysOptions,
   vakHasRefrigerant,
+  vakKostutinTyyppiOptions,
+  vakLammitysTyyppiOptions,
+  vakVesiventtiiliOptions,
   type IlpJarjestelma,
   type LaiteKokoonpano,
   type MlpJaahdytysTila,
 } from '../../lib/huoltoRaportti/deviceKokoonpano';
 import { createEmptyMittausSisayksikkoData, createEmptySisayksikkoData } from '../../lib/huoltoRaportti/defaults';
+import { isLiquidHeatExchangerCondenser } from '../../lib/huoltoRaportti/deviceModuleLogic';
 import ToggleSwitch from '../ToggleSwitch';
+import { FormInput } from './FormInput';
 
 /** Kokoonpanon kytkin näkyy aina (FormCheckbox piilottaa pois-tilan dokumenttinäkymässä). */
 function FormCheckbox(props: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
@@ -77,15 +82,63 @@ export function KokoonpanoSection({ form, onFreeCoolingChange, onKokoonpanoChang
             onChange={onFreeCoolingChange}
           />
           <FormCheckbox
-            label="Kostutus (höyrysylinteri)"
+            label="Jäähdytys"
+            checked={k.vakJaahdytys !== false}
+            onChange={(checked) => set({ vakJaahdytys: checked })}
+          />
+          <FormCheckbox
+            label="Lämmitys"
+            checked={k.vakLammitys === true}
+            onChange={(checked) => set({ vakLammitys: checked })}
+          />
+          {k.vakLammitys === true ? (
+            <>
+              <label>
+                Lämmityksen tyyppi
+                <select value={k.vakLammitysTyyppi ?? ''} onChange={(e) => set({ vakLammitysTyyppi: e.target.value as LaiteKokoonpano['vakLammitysTyyppi'] })}>
+                  <option value="">Valitse…</option>
+                  {vakLammitysTyyppiOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+              {k.vakLammitysTyyppi === 'sahko' ? (
+                <FormInput label="Lämmitysteho (kW)" type="number" value={k.vakLammitysKw ?? ''} onChange={(v) => set({ vakLammitysKw: v })} />
+              ) : null}
+            </>
+          ) : null}
+          <FormCheckbox
+            label="Kostutus"
             checked={k.kostutus === true}
             onChange={(checked) => set({ kostutus: checked })}
           />
+          {k.kostutus === true ? (
+            <>
+              <label>
+                Kostuttimen tyyppi
+                <select value={k.vakKostutinTyyppi ?? ''} onChange={(e) => set({ vakKostutinTyyppi: e.target.value as LaiteKokoonpano['vakKostutinTyyppi'] })}>
+                  <option value="">Valitse…</option>
+                  {vakKostutinTyyppiOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+              <FormInput label="Kostuttimen malli" value={k.vakKostutinMalli ?? ''} onChange={(v) => set({ vakKostutinMalli: v })} />
+            </>
+          ) : null}
           <FormCheckbox
-            label="Kuivaus (sähkövastukset)"
+            label="Kuivaus"
             checked={k.kuivaus === true}
             onChange={(checked) => set({ kuivaus: checked })}
           />
+          {k.kuivaus === true ? (
+            <FormInput label="Kuivauksen vastusteho (kW)" type="number" value={k.vakKuivausKw ?? ''} onChange={(v) => set({ vakKuivausKw: v })} />
+          ) : null}
+          {vakHasRefrigerant(form) && isLiquidHeatExchangerCondenser(form.lauhdutinTyyppiLaite) ? (
+            <label className="huolto-span-all">
+              Lauhdutusveden venttiili
+              <select value={k.vakVesiventtiili ?? ''} onChange={(e) => set({ vakVesiventtiili: e.target.value as LaiteKokoonpano['vakVesiventtiili'] })}>
+                <option value="">Valitse…</option>
+                {vakVesiventtiiliOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </label>
+          ) : null}
         </>
       ) : null}
 

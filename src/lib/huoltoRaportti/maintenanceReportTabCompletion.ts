@@ -159,6 +159,9 @@ function completionForTab(
     case 'mlpAktiivijaahdytys':
     case 'kostutus':
     case 'kuivaus':
+    case 'lampotilansaato':
+    case 'ilmapuoli':
+    case 'vakOhjaus':
       return fieldModuleCompletion(form, tabId);
 
     case 'kylmaainePiiri': {

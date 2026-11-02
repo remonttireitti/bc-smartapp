@@ -421,6 +421,9 @@ export function createEmptyLauhdutuspiiriData(): LauhdutuspiiriData {
     painesäätimenMalli: '',
     virtausRiittävä: true,
     virtausOngelma: '',
+    vesiventtiiliAsetusBar: '',
+    lmvPuhdistettu: false,
+    lmvKunto: '',
   };
 }
 
@@ -561,7 +564,7 @@ export function ensureTyhjiointiData(data: Partial<TyhjiointiData> | undefined):
 export function createEmptyEvaporatorData(laiteTyyppi?: string): EvaporatorData {
   const chiller = laiteTyyppi != null && laiteTyyppi !== '' && isChillerLikeDevice(laiteTyyppi);
   return {
-    tyyppi: chiller ? 'levy' : 'staatinen',
+    tyyppi: laiteTyyppi === 'vakioilmastointtikone' ? 'suorahoyrystin' : chiller ? 'levy' : 'staatinen',
     huoneenTunnus: '',
     valmistaja: '',
     malli: '',

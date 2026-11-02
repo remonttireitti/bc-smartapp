@@ -175,6 +175,9 @@ export function buildMaintenanceDocumentTabSummary(
     case 'mlpAktiivijaahdytys':
     case 'kostutus':
     case 'kuivaus':
+    case 'lampotilansaato':
+    case 'ilmapuoli':
+    case 'vakOhjaus':
       return fieldModuleSummary(form, tabId);
 
     default: {

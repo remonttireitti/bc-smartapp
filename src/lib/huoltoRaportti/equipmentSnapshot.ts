@@ -41,6 +41,7 @@ import type {
   SisayksikkoData,
 } from './types';
 import { getRefrigerantGWP, resolveKylmaaineTyyppi } from './utils';
+import { FIELD_MODULES } from './fieldModules';
 
 const trim = (s: unknown) => String(s ?? '').trim();
 
@@ -405,6 +406,18 @@ export function buildHuoltoEquipmentTechnicalSnapshot(data: HuoltoReportData): R
       return Object.keys(fixed).length ? { ohjauksetKiinteat: fixed } : {};
     })(),
     ...(() => {
+      const fixed: Record<string, Record<string, string>> = {};
+      for (const def of FIELD_MODULES) {
+        const vals = data.kenttaModuulit?.[def.id];
+        if (!vals) continue;
+        for (const f of def.fields) {
+          if (!('fixed' in f) || !f.fixed || !trim(vals[f.id])) continue;
+          (fixed[def.id] ??= {})[f.id] = trim(vals[f.id]);
+        }
+      }
+      return Object.keys(fixed).length ? { kenttaKiinteat: fixed } : {};
+    })(),
+    ...(() => {
       const vj: Record<string, Record<string, unknown>> = {};
       for (const [group, keys] of Object.entries(VJ_FIXED_FIELDS)) {
         const src = (data as unknown as Record<string, unknown>)[group] as Record<string, unknown> | undefined;
@@ -579,6 +592,17 @@ export function applyEquipmentSnapshotToForm(
       if (!trim(current[k]) && trim(v)) filled[k] = trim(v);
     }
     patch.kenttaModuulit = { ...(form.kenttaModuulit ?? {}), ohjaukset: filled };
+  }
+
+  if (snapAny.kenttaKiinteat && typeof snapAny.kenttaKiinteat === 'object') {
+    const next: Record<string, Record<string, string | boolean>> = { ...(patch.kenttaModuulit ?? form.kenttaModuulit ?? {}) };
+    for (const [moduleId, vals] of Object.entries(snapAny.kenttaKiinteat as Record<string, Record<string, unknown>>)) {
+      if (!vals || typeof vals !== 'object') continue;
+      const filled: Record<string, string | boolean> = { ...(next[moduleId] ?? {}) };
+      for (const [k, v] of Object.entries(vals)) if (!trim(filled[k]) && trim(v)) filled[k] = trim(v);
+      next[moduleId] = filled;
+    }
+    patch.kenttaModuulit = next;
   }
 
   if (snapAny.vjKiinteat && typeof snapAny.vjKiinteat === 'object') {

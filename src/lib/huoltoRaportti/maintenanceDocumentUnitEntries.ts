@@ -2,7 +2,7 @@ import { getCondenserCount, kylmioEvaporatorTitle } from './evaporatorHelpers';
 import { isKylmioDevice, usesCondenserConfig } from './deviceKokoonpano';
 import { componentStatus } from './huoltoInspectionStatus';
 import { ilpDeviceModel, ilpDeviceSerial, isIlpDevice } from './ilpIdentity';
-import { isChillerLikeDevice, usesRefrigerantServiceExtras } from './deviceModuleLogic';
+import { isWaterCooledChiller, usesRefrigerantServiceExtras } from './deviceModuleLogic';
 import { tiiveyskoeTabCompletion, tyhjiointiTabCompletion } from './maintenanceReportTabCompletion';
 import {
   describeRaportointiMissingItems,
@@ -89,7 +89,7 @@ export function buildMaintenanceDocumentEntries(
       appendOptionalServiceMeasurementEntries(entries, form);
     }
 
-    if (tab.id === 'hoyrystin' && !isChillerLikeDevice(form.laiteTyyppi)) {
+    if (tab.id === 'hoyrystin' && !isWaterCooledChiller(form.laiteTyyppi)) {
       const count = getEvaporatorCircuitCount(form);
       for (let index = 0; index < count; index += 1) {
         entries.push({
@@ -365,7 +365,7 @@ export function documentNavTargetTabId(tabId: string, form: HuoltoReportData): s
     return units[0]?.tabId ?? tabId;
   }
   if (tabId !== 'hoyrystin' && tabId !== 'lauhdutin') return tabId;
-  if (tabId === 'hoyrystin' && !isChillerLikeDevice(form.laiteTyyppi)) {
+  if (tabId === 'hoyrystin' && !isWaterCooledChiller(form.laiteTyyppi)) {
     const count = getEvaporatorCircuitCount(form);
     return count > 0 ? 'hoyrystin:0' : tabId;
   }

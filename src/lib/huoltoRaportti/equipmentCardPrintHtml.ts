@@ -3,6 +3,7 @@ import { LAUHDUTIN_PAINEVENTTIILI_MALLI_LABEL } from './constants';
 import {
   LAUHDUTIN_TYYPIT,
   MLP_LAITEKORTTI_ROWS,
+  vakKokoonpanoRows,
   mlpSnapshotRowText,
   NESTE_VJ_OHJAUS_LAHDE,
   NESTE_VJ_OHJAUS_TAPA,
@@ -132,6 +133,8 @@ export function buildEquipmentCardSnapshotPrintHtml(snapshot: ParsedEquipmentSna
     { label: 'Kylmäainetta yhteensä', value: snapVal(snapshot.kylmaaineMaaraYhteensa) },
     { label: 'Laskettu CO₂-ekvivalentti (t)', value: snapVal(snapshot.kylmaaineCO2Ekv) },
   );
+  const kokoonpanoRows = vakKokoonpanoRows(snapshot);
+  if (kokoonpanoRows.length > 0) parts.push(printSection('Kokoonpano', kvTable(kokoonpanoRows)));
   parts.push(printSection('Käyttötarkoitus ja kylmäaine', kvTable(kylmaRows)));
 
   const circuitBlocks: string[] = [];

@@ -127,8 +127,11 @@ export const MAINTENANCE_REPORT_BUILTIN_SECTIONS: readonly MaintenanceReportSect
     label: () => 'Vapaajäähdytys',
     isVisible: (input) => input.showVapaajahdytysSection,
   },
+  fieldModuleSection('lampotilansaato', 'konvektorit'),
   fieldModuleSection('kostutus', 'vapaajahdytys'),
   fieldModuleSection('kuivaus', 'tiiveyskoe'),
+  fieldModuleSection('ilmapuoli', 'hoyrystin'),
+  fieldModuleSection('vakOhjaus', 'vjOhjaus'),
   {
     id: 'konvektorit',
     themeKey: 'konvektorit',

@@ -16,7 +16,7 @@ export function JaahdytysvesiSection({ form, onChange }: Props) {
   const documentLayout = useMaintenanceDocumentLayout();
   const data = form.jaahdytysvesiData ?? createEmptyJaahdytysvesiData();
   const isVj = isWaterCooledChiller(form.laiteTyyppi);
-  const isVak = form.laiteTyyppi === 'vakioilmastointikone';
+  const isVak = form.laiteTyyppi === 'vakioilmastointtikone';
   const title = jaahdytysvesiSectionTitle(form.laiteTyyppi);
 
   const patch = (next: Partial<typeof data>) =>

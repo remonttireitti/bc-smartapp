@@ -41,7 +41,7 @@ function liquidPower(virtaus: unknown, meno: unknown, tulo: unknown, neste: unkn
 }
 
 /** Nesteen selite; jos sama c-arvo on usealla nesteellä (3,4 / 3,2 / 3,0), näytetään vain c. */
-function nesteText(value: unknown): string {
+export function nesteText(value: unknown): string {
   const v = String(value ?? '').trim();
   if (!v) return '';
   const matches = mlpNestOptions.filter((o) => o.value === v);

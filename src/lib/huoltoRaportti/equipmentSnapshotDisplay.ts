@@ -1,4 +1,5 @@
 import { kayttovesiVaraajaTyyppiOptions } from './constants';
+import { vakKostutinTyyppiOptions, vakLammitysTyyppiOptions, vakVesiventtiiliOptions, type LaiteKokoonpano } from './deviceKokoonpano';
 import { refrigerantCircuitHasMagnetValve } from './deviceModuleLogic';
 import type { CondenserData, EquipmentSnapshot, NestelauhdutinUnitData } from './types';
 
@@ -242,4 +243,32 @@ export function deviceTypeLabel(value: string | null | undefined): string {
   };
   const key = String(value || '').trim();
   return map[key] || key || '—';
+}
+
+
+/** Vakioilmastointikoneen kiinteä kokoonpano laitekortille (vain täytetyt rivet). */
+export function vakKokoonpanoRows(snapshot: Record<string, unknown>): { label: string; value: string }[] {
+  if (snapshot.laiteTyyppi !== 'vakioilmastointtikone') return [];
+  const k = snapshot.laiteKokoonpano as LaiteKokoonpano | undefined;
+  if (!k || typeof k !== 'object') return [];
+  const lab = <T extends string>(opts: { value: T; label: string }[], v: T | undefined) =>
+    opts.find((o) => o.value === v)?.label ?? '';
+  const kw = (v: unknown) => (String(v ?? '').trim() ? `${String(v).trim()} kW` : '');
+  const join = (...p: string[]) => p.filter(Boolean).join(' · ');
+  const konf = (snapshot.laiteKonfiguraatio ?? {}) as Record<string, unknown>;
+  const kiinteat = (snapshot.kenttaKiinteat ?? {}) as Record<string, Record<string, unknown>>;
+  const cond = String(snapshot.lauhdutinTyyppiLaite ?? '');
+  const rows: { label: string; value: string }[] = [
+    { label: 'Höyrystin', value: k.vakKylmaainepiiri === false ? 'Nestekierto (jäähdytyspiiri)' : 'Suora kylmäaine (ilmakenno)' },
+    { label: 'Lauhdutustapa', value: LAUHDUTIN_TYYPIT[cond] ?? '' },
+    { label: 'Lauhdutusveden venttiili', value: lab(vakVesiventtiiliOptions, k.vakVesiventtiili) },
+    { label: 'Jäähdytys', value: k.vakJaahdytys !== false ? 'Kyllä' : '' },
+    { label: 'Lämmitys', value: k.vakLammitys ? join(lab(vakLammitysTyyppiOptions, k.vakLammitysTyyppi), kw(k.vakLammitysKw)) || 'Kyllä' : '' },
+    { label: 'Kostutus', value: k.kostutus ? join(lab(vakKostutinTyyppiOptions, k.vakKostutinTyyppi), String(k.vakKostutinMalli ?? '').trim()) || 'Kyllä' : '' },
+    { label: 'Kuivaus', value: k.kuivaus ? kw(k.vakKuivausKw) || 'Kyllä' : '' },
+    { label: 'Vapaajäähdytys', value: konf.vapaajahdytysKaytossa === true ? 'Kyllä' : '' },
+    { label: 'Suodattimien tyyppi', value: String(kiinteat.ilmapuoli?.suodatinTyyppi ?? '').trim() },
+    { label: 'Säädin', value: String(kiinteat.vakOhjaus?.saadin ?? '').trim() },
+  ];
+  return rows.filter((r) => r.value);
 }

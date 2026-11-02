@@ -20,6 +20,7 @@ interface Props<T extends Data> {
   onChange: (patch: Partial<T>) => void;
   showLauhdutinTarkistukset?: boolean;
   showPiiriTarkistukset?: boolean;
+  showVakLauhdutus?: boolean;
   /** Dokumenttinäkymä: rekisteröi moduulin popup avattavaksi otsikosta. */
   documentModuleKey?: string;
 }
@@ -30,6 +31,7 @@ export function NestepiiriInspection<T extends Data>({
   onChange,
   showLauhdutinTarkistukset,
   showPiiriTarkistukset,
+  showVakLauhdutus,
   documentModuleKey,
 }: Props<T>) {
   const documentLayout = useMaintenanceDocumentLayout();
@@ -87,6 +89,7 @@ export function NestepiiriInspection<T extends Data>({
             onChange={(patch) => setDraft((prev) => ({ ...prev, ...patch }))}
             showLauhdutinTarkistukset={showLauhdutinTarkistukset}
             showPiiriTarkistukset={showPiiriTarkistukset}
+            showVakLauhdutus={showVakLauhdutus}
           />
         ) : null}
 

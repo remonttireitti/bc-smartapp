@@ -11,6 +11,7 @@ export function evaporatorShowsFansAndDefrost(tyyppi: EvaporatorType | string | 
 }
 
 export function defaultEvaporatorTypeForDevice(laiteTyyppi: string): EvaporatorType {
+  if (laiteTyyppi === 'vakioilmastointtikone') return 'suorahoyrystin';
   return isChillerLikeDevice(laiteTyyppi) ? 'levy' : 'staatinen';
 }
 

@@ -477,6 +477,12 @@ export interface LauhdutuspiiriData extends NestepiiriData {
   painesäätimenMalli: string;
   virtausRiittävä: boolean;
   virtausOngelma: string;
+  /** VAK: vesiventtiilin asetusarvo (lauhtumispaine, bar). */
+  vesiventtiiliAsetusBar?: string;
+  /** VAK: koneen sisäinen lämmönsiirrin puhdistettu. */
+  lmvPuhdistettu?: boolean;
+  /** VAK: koneen sisäisen lämmönsiirtimen kunto (Kunnossa / Likainen / Vika). */
+  lmvKunto?: string;
 }
 
 export interface VapaajahdytysData extends LiquidCircuitData {
