@@ -110,7 +110,7 @@ function groupTitle(id: string, entries: MaintenanceDocumentEntry[], circuitCoun
   if (id === 'toiminnot') return 'Toiminnot';
   if (id === 'konvektorit') return 'Konvektorit';
   if (id === 'mittaukset') {
-    if (entries.some((e) => e.tabId === 'vakMittaukset')) return 'Mittaukset';
+    if (entries.some((e) => e.tabId === 'vakMittaukset')) return 'Asetusarvot ja ilmamittaukset';
     const hasOhjaus = entries.some((e) => e.tabId === 'ohjaukset');
     return hasOhjaus && entries.length > 1 ? 'Ohjaus ja mittaukset' : hasOhjaus ? 'Ohjaukset' : 'Mittaukset';
   }

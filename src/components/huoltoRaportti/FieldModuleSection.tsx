@@ -39,7 +39,7 @@ export function FieldModuleSection({ moduleId, form, onPatchForm }: Props) {
           : null;
         if (field.measured) {
           const first = measuredFields[0]?.id === field.id;
-          const toggle = first ? <TempMeasuredToggle key={`tm-${moduleId}`} on={temp.on} onChange={temp.setOn} /> : null;
+          const toggle = first ? <TempMeasuredToggle key={`tm-${moduleId}`} on={temp.on} onChange={temp.setOn} label={def.measuredLabel} /> : null;
           return [heading, toggle, temp.show ? renderField(field, required) : null];
         }
         return [heading, renderField(field, required)];

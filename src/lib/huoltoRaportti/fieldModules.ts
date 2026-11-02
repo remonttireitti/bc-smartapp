@@ -2,7 +2,7 @@
  * Kokoonpanon mukaan näytettävät kenttämoduulit (ohjaukset, kostutus, kuivaus, lämmitys-/jäähdytystoiminto).
  * Arvot: form.kenttaModuulit[moduuliId][kenttaId].
  */
-import { isKylmioDevice, vakCoolingOn, vakHasWaterCoil, vakHeatingOn, vjHeatingEnabled, type KenttaModuuliArvot, type LaiteKokoonpano } from './deviceKokoonpano';
+import { isKylmioDevice, vakHasWaterCoil, vakHeatingOn, vjHeatingEnabled, type KenttaModuuliArvot, type LaiteKokoonpano } from './deviceKokoonpano';
 import type { MaintenanceTabCompletionState } from './maintenanceReportTabCompletion';
 
 export type FieldModuleId =
@@ -44,6 +44,8 @@ export type FieldModuleField = FieldExtras & (
 export type FieldModuleDefinition = {
   id: FieldModuleId;
   title: string;
+  /** Mitattu-kytkimen teksti (oletus "Lämpötilat mitattu"). */
+  measuredLabel?: string;
   fields: FieldModuleField[];
   isVisible: (form: FieldModuleForm) => boolean;
 };
@@ -184,7 +186,7 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
       { id: 'puhallinTyyppi', label: 'Puhaltimen tyyppi', type: 'select', options: ['EC', 'AC suoraveto', 'AC hihnaveto'], fixed: true, section: 'Puhallin' },
       { id: 'puhallin', label: 'Puhaltimen toiminta', type: 'select', options: KUNTO, section: 'Puhallin' },
       { id: 'puhallinVirta', label: 'Puhaltimen virta', type: 'text', unit: 'A', section: 'Puhallin' },
-      { id: 'puhallinNopeus', label: 'Pyörimisnopeus / EC-asetus', type: 'text', unit: '% / rpm', section: 'Puhallin' },
+      { id: 'puhallinNopeus', label: 'Pyörimisnopeus / EC-asetus (% tai rpm)', type: 'text', section: 'Puhallin' },
       { id: 'laakerit', label: 'Laakerit ja kiinnitys', type: 'select', options: KUNTO, section: 'Puhallin' },
       { id: 'hihna', label: 'Hihna ja hihnapyörät', type: 'select', options: ['Kunnossa', 'Kiristetty', 'Vaihdettu', 'Vika'], section: 'Puhallin', when: (_v, form) => form.kenttaModuulit?.ilmapuoli?.puhallinTyyppi === 'AC hihnaveto' },
       { id: 'juoksupyora', label: 'Juoksupyörä puhdas', type: 'toggle', section: 'Puhallin' },
@@ -192,7 +194,7 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
       { id: 'suodatinDp', label: 'Suodattimen paine-ero', type: 'text', unit: 'Pa', section: 'Suodattimet' },
       { id: 'suodatinHalytys', label: 'Tukkeutumishälytys', type: 'select', options: KUNTO_EI_OLE, section: 'Suodattimet' },
       { id: 'suodattimetVaihdettu', label: 'Suodattimet vaihdettu', type: 'toggle', section: 'Suodattimet' },
-      { id: 'kondenssivesi', label: 'Kondenssivesi / vesilukko', type: 'select', options: KUNTO, section: 'Kondenssivesi' },
+      { id: 'kondenssivesi', label: 'Poisto ja vesilukko', type: 'select', options: KUNTO, section: 'Kondenssivesi' },
       { id: 'huomio', label: 'Huomiot', type: 'textarea' },
     ],
   },
@@ -218,7 +220,6 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
     isVisible: (form) => form.laiteTyyppi === 'vakioilmastointtikone' && form.laiteKokoonpano?.kuivaus === true,
     fields: [
       { id: 'toiminta', label: 'Kuivauksen toiminta', type: 'select', options: KUNTO },
-      { id: 'jalkilammitys', label: 'Jälkilämmityksen asetusarvo', type: 'text', unit: '°C' },
       { id: 'virtaL1', label: 'Vastusten virta L1', type: 'text', unit: 'A', when: (_v, form) => Boolean(form.laiteKokoonpano?.vakKuivausKw?.trim()) },
       { id: 'virtaL2', label: 'Vastusten virta L2', type: 'text', unit: 'A', when: (_v, form) => Boolean(form.laiteKokoonpano?.vakKuivausKw?.trim()) },
       { id: 'virtaL3', label: 'Vastusten virta L3', type: 'text', unit: 'A', when: (_v, form) => Boolean(form.laiteKokoonpano?.vakKuivausKw?.trim()) },
@@ -241,18 +242,22 @@ export const FIELD_MODULES: readonly FieldModuleDefinition[] = [
   },
   {
     id: 'vakMittaukset',
-    title: 'Mittaukset ja asetusarvot',
+    title: 'Asetusarvot ja ilmamittaukset',
+    measuredLabel: 'Ilmamittaukset tehty',
     isVisible: (form) => form.laiteTyyppi === 'vakioilmastointtikone',
     fields: [
-      { id: 'asetusarvo', label: 'Lämpötilan asetusarvo', type: 'text', unit: '°C', section: 'Lämpötila' },
-      { id: 'saatoalue', label: 'Säätöalue / neutraalivyöhyke', type: 'text', unit: 'K', section: 'Lämpötila' },
-      { id: 'jaahdytysToiminta', label: 'Jäähdytyksen toiminta', type: 'select', options: KUNTO, section: 'Lämpötila', when: (_v, form) => vakCoolingOn(form) },
-      { id: 'tuloIlma', label: 'Tuloilma', type: 'text', unit: '°C', measured: true, section: 'Lämpötila' },
-      { id: 'poistoIlma', label: 'Poistoilma', type: 'text', unit: '°C', measured: true, section: 'Lämpötila' },
-      { id: 'kosteusAsetus', label: 'Kostutuksen asetusarvo', type: 'text', unit: '%RH', required: true, section: 'Kosteus', when: (_v, form) => form.laiteKokoonpano?.kostutus === true },
-      { id: 'kosteusSaatoalue', label: 'Säätöalue / hystereesi', type: 'text', unit: '%RH', section: 'Kosteus', when: (_v, form) => form.laiteKokoonpano?.kostutus === true },
-      { id: 'kosteusMitattu', label: 'Mitattu kosteus', type: 'text', unit: '%RH', section: 'Kosteus', when: (_v, form) => form.laiteKokoonpano?.kostutus === true },
-      { id: 'kuivausAsetus', label: 'Kuivauksen asetusarvo', type: 'text', unit: '%RH', section: 'Kosteus', when: (_v, form) => form.laiteKokoonpano?.kuivaus === true },
+      { id: 'asetusarvo', label: 'Lämpötilan asetusarvo', type: 'text', unit: '°C', section: 'Lämpötila-asetukset' },
+      { id: 'saatoalue', label: 'Säätöalue / neutraalivyöhyke', type: 'text', unit: 'K', section: 'Lämpötila-asetukset' },
+      { id: 'kosteusAsetus', label: 'Kostutuksen asetusarvo', type: 'text', unit: '%RH', required: true, section: 'Kosteusasetukset', when: (_v, form) => form.laiteKokoonpano?.kostutus === true },
+      { id: 'kosteusSaatoalue', label: 'Kostutuksen säätöalue / hystereesi', type: 'text', unit: '%RH', section: 'Kosteusasetukset', when: (_v, form) => form.laiteKokoonpano?.kostutus === true },
+      { id: 'kuivausAsetus', label: 'Kuivauksen asetusarvo', type: 'text', unit: '%RH', section: 'Kosteusasetukset', when: (_v, form) => form.laiteKokoonpano?.kuivaus === true },
+      { id: 'jalkilammitys', label: 'Jälkilämmityksen asetusarvo', type: 'text', unit: '°C', section: 'Kosteusasetukset', when: (_v, form) => form.laiteKokoonpano?.kuivaus === true },
+      { id: 'tuloIlma', label: 'Tuloilman lämpötila', type: 'text', unit: '°C', measured: true, section: 'Ilmamittaukset' },
+      { id: 'tuloRh', label: 'Tuloilman suhteellinen kosteus', type: 'text', unit: '%RH', measured: true, section: 'Ilmamittaukset' },
+      { id: 'ilmavirta', label: 'Ilmavirta', type: 'text', unit: 'm³/h', measured: true, section: 'Ilmamittaukset' },
+      { id: 'poistoIlma', label: 'Poistoilman lämpötila', type: 'text', unit: '°C', measured: true, section: 'Ilmamittaukset' },
+      { id: 'kosteusMitattu', label: 'Poistoilman suhteellinen kosteus', type: 'text', unit: '%RH', measured: true, section: 'Ilmamittaukset' },
+      { id: 'jaahdytysToiminta', label: 'Jäähdytyksen toiminta', type: 'select', options: KUNTO, legacy: true },
       { id: 'huomio', label: 'Huomiot', type: 'textarea' },
     ],
   },

@@ -342,9 +342,11 @@ function renderSingleEvaporatorHtml(
   deviceType: string,
   sharedAcrossCircuits?: boolean,
   nested = false,
+  titleOverride?: string,
 ): string {
+  const vak = deviceType === 'vakioilmastointtikone';
   const title =
-    deviceType === 'kylmäkoneikko'
+    titleOverride ? titleOverride : deviceType === 'kylmäkoneikko'
       ? `Höyrystin ${index + 1}`
       : sharedAcrossCircuits
         ? 'Höyrystin (yhteinen)'
@@ -415,12 +417,30 @@ function renderSingleEvaporatorHtml(
       : '';
 
   const huomio = renderInspectionHuomioRow(ev.tarkastusHuomio, esc);
-  const body = `${tiedot}${mittaukset}${sulatus}${ohjaus}${fans}${tarkastukset}${huomio}`;
+  // VAK: DX-höyrystin on aina suora kylmäainehöyrystin; editorissa kysytään vain tunnistetiedot + tarkastustulos
+  // (ilmamittaukset ovat "Asetusarvot ja ilmamittaukset" -osiossa, ei sulatusta eikä nestepuolta).
+  const vakTiedot = blk('Tiedot', [
+    row('Tyyppi', 'Suora kylmäainehöyrystin'),
+    row('Valmistaja', ev.valmistaja),
+    row('Malli', ev.malli),
+    row('Sarjanumero', ev.sarjanumero),
+  ]);
+  const body = vak ? `${vakTiedot}${huomio}` : `${tiedot}${mittaukset}${sulatus}${ohjaus}${fans}${tarkastukset}${huomio}`;
   const st = inspectionHeader(ev.tarkastusTila ?? entityInspectionStatus(ev));
   return nested ? cmp(title, st, body) : box(title, body, st);
 }
 
 function renderEvaporators(data: HuoltoReportData): string {
+  if (data.laiteTyyppi === 'vakioilmastointtikone') {
+    if (!data.selectedModules.hoyrystin) return '';
+    const circuits = Math.max(1, Math.min(4, parseInt(data.kylmaainePiireja, 10) || 1));
+    const shared = circuits > 1 && (data.hoyrystinYhteinenPiireissa ?? true);
+    const count = shared ? 1 : circuits;
+    return data.evaporatorData
+      .slice(0, count)
+      .map((ev, i) => renderSingleEvaporatorHtml(ev, i, data.laiteTyyppi, shared, false, shared ? 'Höyrystin (yhteinen)' : circuits > 1 ? `Höyrystin, piiri ${i + 1}` : 'Höyrystin'))
+      .join('');
+  }
   if (!data.selectedModules.hoyrystin && data.laiteTyyppi !== 'pakastin' && data.laiteTyyppi !== 'kylmäkoneikko') {
     return '';
   }
@@ -435,6 +455,7 @@ function renderCircuitsHtml(data: HuoltoReportData): string {
   if (!data.selectedModules.kylmaainePiiri || data.kylmaainePiireja === '0') return '';
 
   const inlineEvaporators =
+    data.laiteTyyppi !== 'vakioilmastointtikone' &&
     isChillerLikeDevice(data.laiteTyyppi) &&
     !isWaterCooledChiller(data.laiteTyyppi) &&
     (data.selectedModules.hoyrystin || data.laiteTyyppi === 'pakastin' || data.laiteTyyppi === 'kylmäkoneikko');
@@ -859,7 +880,7 @@ export function generateMaintenanceReportHtml(
         ...(data.laiteTyyppi === 'vakioilmastointtikone' && data.laiteKokoonpano
           ? (() => {
               const v = vakKokoonpanoPrintRows(data, kokoonpanoLauhdutinLabel(data));
-              return [row('Kokoonpano', v.kokoonpano), row('Toiminnot', v.toiminnot)];
+              return [row('Kokoonpano', v.kokoonpano), row('Käytössä olevat toiminnot', v.toiminnot)];
             })()
           : [row('Kokoonpano', kokoonpanoSummary(data, kokoonpanoLauhdutinLabel(data)))]),
       ].join('');
