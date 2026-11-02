@@ -67,7 +67,6 @@ export type MaintenanceReportTabContentProps = {
   isVj: boolean;
   lampopumppuParts: { ulkoyksikko: boolean; sisayksikko: boolean; mittaukset: boolean };
   pendingModuleKeys: ModuleKey[];
-  optionalMaintenanceModules: { key: ModuleKey; label: string }[];
   moduleLabel: (key: ModuleKey) => string;
   printBusy: boolean;
   reportOwnerCompanyId: string | null;
@@ -111,7 +110,6 @@ export type MaintenanceReportTabContentProps = {
   onKokoonpanoChange: (next: import('../../lib/huoltoRaportti/deviceKokoonpano').LaiteKokoonpano, extra?: Partial<HuoltoReportData>) => void;
   onPrintKonvektoriFaults?: () => void;
   patchCustomModuleValues: (moduleId: string, values: Record<string, string | boolean>) => void;
-  toggleModule: (key: ModuleKey, checked: boolean) => void;
 };
 
 export function MaintenanceReportTabContent({
@@ -139,7 +137,6 @@ export function MaintenanceReportTabContent({
   isVj,
   lampopumppuParts,
   pendingModuleKeys,
-  optionalMaintenanceModules,
   moduleLabel,
   printBusy,
   reportOwnerCompanyId,
@@ -181,7 +178,6 @@ export function MaintenanceReportTabContent({
   onKokoonpanoChange,
   onPrintKonvektoriFaults,
   patchCustomModuleValues,
-  toggleModule,
 }: MaintenanceReportTabContentProps) {
   const printLayout = useHuoltoPrintFormLayout();
   const documentLayout = useMaintenanceDocumentLayout();
@@ -540,47 +536,6 @@ export function MaintenanceReportTabContent({
             </div>
           </>
         )}
-
-        {optionalMaintenanceModules.length > 0 ? (
-          <div className="maintenance-optional-modules">
-            <p className="muted">
-              Valinnaiset mittaukset — moduulit valitaan laitetyypin mukaan automaattisesti.
-            </p>
-            <div className="module-toggle-grid">
-              {optionalMaintenanceModules.map((opt) => (
-                <div key={opt.key} className="module-toggle-card">
-                  <ToggleSwitch
-                    label={opt.label}
-                    checked={form.selectedModules[opt.key]}
-                    onChange={(checked) => toggleModule(opt.key, checked)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tiiveyskoe && !documentLayout ? (
-          <div className="huolto-modules-stack maintenance-embedded-module">
-            <TiiveyskoeSection
-              form={form}
-              onChange={onPatchForm}
-              reportId={reportId}
-              userId={session.user.id}
-            />
-          </div>
-        ) : null}
-
-        {usesRefrigerantServiceExtras(form.laiteTyyppi) && form.selectedModules.tyhjiointi && !documentLayout ? (
-          <div className="huolto-modules-stack maintenance-embedded-module">
-            <TyhjiointiSection
-              form={form}
-              onChange={onPatchForm}
-              reportId={reportId}
-              userId={session.user.id}
-            />
-          </div>
-        ) : null}
       </section>
     );
   }

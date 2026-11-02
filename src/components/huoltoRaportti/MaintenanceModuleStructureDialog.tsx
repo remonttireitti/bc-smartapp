@@ -96,7 +96,7 @@ export function MaintenanceModuleStructureDialog({
   );
 
   const optionalModules = useMemo(
-    () => getManualModuleOptions(form.laiteTyyppi),
+    () => getManualModuleOptions(form.laiteTyyppi).filter((o) => o.key !== 'tiiveyskoe' && o.key !== 'tyhjiointi'),
     [form.laiteTyyppi],
   );
 
@@ -325,7 +325,7 @@ export function MaintenanceModuleStructureDialog({
 
             {optionalModules.length > 0 ? (
               <section className="maintenance-module-structure-section">
-                <h3>Valinnaiset mittaukset</h3>
+                <h3>Moduulit</h3>
                 <div className="maintenance-module-structure-optional">
                   {optionalModules.map((option) => (
                     <label key={option.key} className="maintenance-module-structure-check">

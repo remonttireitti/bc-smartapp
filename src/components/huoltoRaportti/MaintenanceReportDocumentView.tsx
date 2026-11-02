@@ -100,7 +100,9 @@ function MaintenanceReportDocumentViewInner({
     [tabs, form],
   );
   const showOptionalMeasurementActions =
-    usesRefrigerantServiceExtras(form.laiteTyyppi) && vakHasRefrigerant(form) && Boolean(onToggleOptionalModule);
+    usesRefrigerantServiceExtras(form.laiteTyyppi)
+    && Boolean(onToggleOptionalModule)
+    && (vakHasRefrigerant(form) || form.selectedModules.tiiveyskoe || form.selectedModules.tyhjiointi);
   const hasEvaporatorUnits = entries.some((entry) => entry.kind === 'evaporatorUnit');
   const hasCondenserUnits = entries.some((entry) => entry.kind === 'condenserUnit');
   const hasRefrigerantCircuitUnits = entries.some((entry) =>
