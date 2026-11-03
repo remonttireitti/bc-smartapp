@@ -27,6 +27,7 @@ import { getRefrigerantGWP } from './utils';
 import { ilpDeviceModel, ilpDeviceSerial } from './ilpIdentity';
 import { PRINT_SHELL_CSS, keepHeadingWithFirst, printBrandStyle, renderPrintFooter, renderPrintHeader, renderSignatureRow } from './printShell';
 import { fiDate, humanValue } from './printFormat';
+import { collectReportFaults } from './reportFaults';
 import { calculateIlpSisayksikkoTeho, formatIlpSisayksikkoTeho } from './ilpTeho';
 
 export interface IlpPrintMeta {
@@ -352,6 +353,16 @@ export function generateIlpPrintHtml(data: HuoltoReportData, meta: IlpPrintMeta)
   const outdoor = renderOutdoor(data);
   const refrigerant = renderRefrigerant(data);
 
+  const faults = collectReportFaults(data);
+  const faultSummary = faults.length
+    ? section(
+        'Havaitut viat',
+        `<table class="kv checks">${faults
+          .map((f) => `<tr><th>${esc(f.source)}</th><td class="fault-text">${esc(f.note || 'Vika merkitty')}</td></tr>`)
+          .join('')}</table>`,
+      )
+    : '';
+
   const huom = txt(data.huomiot);
   const notesInner = [
     huom ? `<div class="note${data.huomiotLuonne === 'vika' ? ' fault-text' : ''}">${formatHuomioPrintHtml(huom, esc)}</div>` : '',
@@ -362,6 +373,7 @@ export function generateIlpPrintHtml(data: HuoltoReportData, meta: IlpPrintMeta)
 <div class="rp ilp-print">
   ${renderPrintHeader({ logoUrl: meta.logoUrl, companyLine, title: meta.docTitle, subtitle: ['Ilmalämpöpumppu', hasPrintableValue(data.laiteTunnus) ? txt(data.laiteTunnus) : ''].filter(Boolean).join(' · ') })}
   <div class="band">${bandItems.join('')}</div>
+  ${faultSummary}
   <div class="info keep">
     <div><h2>Asiakas</h2>${customer}</div>
     <div><h2>Laite</h2>${device}</div>

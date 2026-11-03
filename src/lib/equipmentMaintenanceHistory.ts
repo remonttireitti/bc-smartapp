@@ -13,12 +13,15 @@ import {
   type PrintBranding,
 } from './printDocumentShell';
 import { isWorkReportEquipmentTableMissing } from './workReportEquipment';
+import { collectReportFaults, plainNoteText, type ReportFault } from './huoltoRaportti/reportFaults';
 
 export type MaintenanceHistoryEntry = {
   kind: 'työraportti' | 'huoltoraportti' | 'merkintä' | 'huoltokäynti';
   sortMs: number;
   dateLabel: string;
   summary: string;
+  /** Raporttiin merkityt viat (kohta + kuvaus), kaikki laitetyypit. */
+  faults?: ReportFault[];
   huomiotHighlight?: string;
   huomiotComment?: string;
 };
@@ -87,14 +90,16 @@ function equipmentLabel(eq: Equipment): string {
   return tag ? `${tag} — ${name}` : name;
 }
 
-function huoltoSummary(data: HuoltoReportData): { summary: string; huomiotHighlight?: string; huomiotComment?: string } {
+function huoltoSummary(data: HuoltoReportData): { summary: string; faults: ReportFault[]; huomiotComment?: string } {
   const summary = maintenanceReportListTitle(data);
-  const notes = String(data.huomiot || '').trim();
-  const isFault = data.huomiotLuonne === 'vika';
+  const faults = collectReportFaults(data);
+  const notes = plainNoteText(data.huomiot);
+  // Vika-luonteinen huomio on jo vikalistassa; muu huomio omana rivinään.
+  const isFaultNote = data.huomiotLuonne === 'vika';
   return {
     summary,
-    huomiotHighlight: isFault && notes ? notes : undefined,
-    huomiotComment: !isFault && notes ? notes : undefined,
+    faults,
+    huomiotComment: !isFaultNote && notes ? notes : undefined,
   };
 }
 
@@ -315,7 +320,7 @@ export function buildMaintenanceHistoryForEquipment(
       sortMs: huoltoSortMs(row, data),
       dateLabel: formatMaintenanceDateFi(data.huoltoPaivamaara || row.completed_at || row.updated_at),
       summary: huolto.summary,
-      huomiotHighlight: huolto.huomiotHighlight,
+      faults: huolto.faults.length ? huolto.faults : undefined,
       huomiotComment: huolto.huomiotComment,
     });
   }
@@ -349,11 +354,17 @@ export function buildMaintenanceHistoryPrintHtml(input: {
           ? `<tr><td colspan="3">Ei merkintöjä.</td></tr>`
           : sec.entries
               .map((entry) => {
-                const huomVika = entry.huomiotHighlight
-                  ? `<div style="margin-top:4px;color:#b91c1c;font-weight:700">Vika / huomio: ${escapeHtmlPrint(entry.huomiotHighlight)}</div>`
+                const faultLines = [
+                  ...(entry.faults ?? []).map((f) => (f.note ? `${f.source} — ${f.note}` : f.source)),
+                  ...(entry.huomiotHighlight ? [entry.huomiotHighlight] : []),
+                ];
+                const huomVika = faultLines.length
+                  ? `<div style="margin-top:4px;color:#b91c1c;font-weight:700">Viat:</div><ul style="margin:2px 0 0 16px;padding:0;color:#b91c1c;font-weight:700">${faultLines
+                      .map((l) => `<li>${escapeHtmlPrint(l)}</li>`)
+                      .join('')}</ul>`
                   : '';
                 const huomKom = entry.huomiotComment
-                  ? `<div style="margin-top:4px;color:#b91c1c;font-weight:700;font-size:12px">Huomautukset: ${escapeHtmlPrint(entry.huomiotComment)}</div>`
+                  ? `<div style="margin-top:4px;font-size:12px">Huomautukset: ${escapeHtmlPrint(entry.huomiotComment)}</div>`
                   : '';
                 return `<tr><td>${escapeHtmlPrint(entry.dateLabel)}</td><td>${escapeHtmlPrint(
                   entry.kind === 'työraportti' ? 'Työraportti' : entry.kind === 'merkintä' ? 'Merkintä' : entry.kind === 'huoltokäynti' ? 'Huoltokäynti' : 'Huoltopöytäkirja',

@@ -1,5 +1,6 @@
 import { mlpNesteLabel } from './constants';
 import { isKonvektoritDevice } from './deviceModuleLogic';
+import { collectReportFaults } from './reportFaults';
 import { konvektoriRowIsFaulty, konvektoriTarkastusSummary } from './konvektoriTarkastus';
 import {
   lauhdutuspiiriInspectionStatus,
@@ -194,12 +195,27 @@ export function condensersSummaryRows(form: HuoltoReportData): ModuleSummaryRow[
   return [{ label: 'Lauhduttimia', value: `${count} kpl` }];
 }
 
-export function lampopumppuSummaryRows(form: HuoltoReportData): ModuleSummaryRow[] {
+export function lampopumppuSummaryRows(
+  form: HuoltoReportData,
+  part?: 'ulkoyksikko' | 'sisayksikko' | 'mittaukset',
+): ModuleSummaryRow[] {
   const rows: ModuleSummaryRow[] = [];
-  pushRow(rows, 'Ulkoyksikkö', [form.ulkoyksikkoValmistaja, form.ulkoyksikkoMalli].filter(Boolean).join(' '));
-  pushRow(rows, 'Teho', form.ulkoyksikkoJaahdytysTeho ? `${form.ulkoyksikkoJaahdytysTeho} kW` : '');
-  const sisaCount = form.sisayksikkoMaara ?? form.sisayksikkoData?.length ?? 0;
-  if (sisaCount > 0) pushRow(rows, 'Sisäyksiköt', `${sisaCount} kpl`);
+  const faults = collectReportFaults(form);
+  if (!part || part === 'ulkoyksikko' || part === 'mittaukset') {
+    pushRow(rows, 'Ulkoyksikkö', [form.ulkoyksikkoValmistaja, form.ulkoyksikkoMalli].filter(Boolean).join(' '));
+    pushRow(rows, 'Teho', form.ulkoyksikkoJaahdytysTeho ? `${form.ulkoyksikkoJaahdytysTeho} kW` : '');
+    const ulko = faults.find((f) => f.source === 'Ulkoyksikkö');
+    if (ulko && part !== 'mittaukset') rows.push({ label: 'Vika', value: ulko.note || 'Merkitty' });
+  }
+  if (!part || part === 'sisayksikko' || part === 'mittaukset') {
+    const sisaCount = form.sisayksikkoMaara ?? form.sisayksikkoData?.length ?? 0;
+    if (sisaCount > 0) pushRow(rows, 'Sisäyksiköt', `${sisaCount} kpl`);
+    if (part === 'sisayksikko') {
+      for (const f of faults.filter((x) => x.source.startsWith('Sisäyksikkö'))) {
+        rows.push({ label: `Vika, ${f.source.toLowerCase()}`, value: f.note || 'Merkitty' });
+      }
+    }
+  }
   return rows;
 }
 
