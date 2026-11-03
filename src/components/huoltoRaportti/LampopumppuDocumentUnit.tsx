@@ -32,7 +32,7 @@ export function LampopumppuDocumentUnit({
       documentModuleKey={documentUnitKey}
       title={title}
       titleId={`lampopumppu-${unitId}-dialog-title`}
-      summaryRows={lampopumppuSummaryRows(form)}
+      summaryRows={lampopumppuSummaryRows(form, unitId)}
       editLabel={`Muokkaa: ${title.toLowerCase()}`}
       emptyHint={`Täytä ${title.toLowerCase()} painamalla Muokkaa.`}
     >

@@ -1,4 +1,5 @@
 import { kokoonpanoLauhdutinLabel, kokoonpanoSummary } from './deviceKokoonpano';
+import { collectReportFaults } from './reportFaults';
 import { fieldModuleSummary } from './fieldModules';
 import { konvektoriTarkastusSummary, konvektoriRowIsFaulty } from './konvektoriTarkastus';
 import { hideMaintenancePrintWarnings } from './defaults';
@@ -161,7 +162,11 @@ export function buildMaintenanceDocumentTabSummary(
       return deviceLabel(form) || 'MLP / chiller';
 
     case 'huomiot':
-      return trim(form.huomiot) ? 'Huomioita kirjattu' : 'Ei huomioita';
+      if (trim(form.huomiot)) return 'Huomioita kirjattu';
+      {
+        const faultCount = collectReportFaults(form).length;
+        return faultCount > 0 ? `${faultCount} vikaa merkitty muissa vaiheissa` : 'Ei huomioita';
+      }
 
     case 'huoltotiedot':
       return huoltotiedotSummary(form);

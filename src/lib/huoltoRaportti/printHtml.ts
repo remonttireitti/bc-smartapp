@@ -85,18 +85,16 @@ import {
   renderVuototarkastusStatus,
 } from './utils';
 import { inspectionChipHtml, renderInspectionHuomioRow } from './inspectionPrint';
+import { collectReportFaults, hasReportFaults } from './reportFaults';
 import {
   compressorInspectionStatus,
   condenserInspectionStatus,
   entityInspectionStatus,
   lauhdutuspiiriInspectionStatus,
   nestepiiriInspectionStatus,
-  normalizeHuoltoInspectionStatus,
-  ulkoyksikkoInspectionStatus,
   vapaajahdytysInspectionStatus,
 } from './huoltoInspectionStatus';
 import { hasPrintableValue, normalizePrintText } from './printFieldVisibility';
-import { sisayksikkoTarkastusSummary } from './sisayksikkoTarkastus';
 
 export interface MaintenancePrintMeta {
   companyName: string;
@@ -617,13 +615,14 @@ function renderNestelauhduttimet(data: HuoltoReportData): string {
     .map((u: Record<string, unknown>, i: number) =>
       cmp(
         `Nestelauhdutin ${i + 1}`,
-        '',
+        inspectionHeader(u.tarkastusTila),
         blk('Tiedot', [
           row('Valmistaja', u.valmistaja),
           row('Malli', u.malli),
           row('Sarjanumero', u.sarjanumero),
           row('Puhaltimien määrä', u.puhaltimienMaara, 'kpl'),
-        ]) + blk('Tarkastukset', [chk('Puhdistettu', u.lauhdutinPuhdistettu as boolean | undefined)]),
+        ]) + blk('Tarkastukset', [chk('Puhdistettu', u.lauhdutinPuhdistettu as boolean | undefined)]) +
+          renderInspectionHuomioRow(String(u.tarkastusHuomio ?? ''), esc),
       ),
     )
     .join('');
@@ -650,15 +649,17 @@ function konvektoriPrintSubtitle(data: HuoltoReportData): string {
  * (ulkoyksikkö, sisäyksikkö, hylätty tiiveyskoe / tyhjiöinti).
  */
 export function lampopumppuHasDeviceFault(data: HuoltoReportData): boolean {
-  if (data.laiteTyyppi !== 'lämpöpumppu') return false;
-  const ulko = normalizeHuoltoInspectionStatus(data.ulkoyksikkoTarkastusTila) ?? ulkoyksikkoInspectionStatus(data);
-  if (ulko === 'faulty') return true;
-  const count = data.sisayksikkoMaara > 0 ? data.sisayksikkoMaara : 1;
-  const units = (data.sisayksikkoData ?? []).slice(0, count);
-  if (units.some((u) => u.huomioTyyppi === 'vika' || sisayksikkoTarkastusSummary(u).anyFaulty)) return true;
-  if (data.selectedModules?.tiiveyskoe && data.tiiveyskoeData?.tulos === 'hylatty') return true;
-  if (data.selectedModules?.tyhjiointi && data.tyhjiointiData?.tulos === 'hylatty') return true;
-  return false;
+  return data.laiteTyyppi === 'lämpöpumppu' && hasReportFaults(data);
+}
+
+/** Yhteenveto kaikista raporttiin merkityistä vioista (kaikki laitetyypit), osiot kertovat yksityiskohdat. */
+function renderFaultSummary(data: HuoltoReportData): string {
+  const faults = collectReportFaults(data);
+  if (!faults.length) return '';
+  return box(
+    'Havaitut viat',
+    faults.map((f) => warn(f.note ? `${f.source} — ${f.note}` : f.source, true)).join(''),
+  );
 }
 
 function renderRefrigerantCharge(data: HuoltoReportData): string {
@@ -845,7 +846,7 @@ export function generateMaintenanceReportHtml(
         brandColor: meta.brandColor,
         imageUrls,
         docTitle,
-        fault: Boolean(data.huoltoLaiteessaVika) || lampopumppuHasDeviceFault(data),
+        fault: Boolean(data.huoltoLaiteessaVika) || hasReportFaults(data),
       }),
     );
   }
@@ -892,7 +893,7 @@ export function generateMaintenanceReportHtml(
     ? renderVuototarkastusStatus(data.huoltoKylmaaineVuotoTarkastus)
     : '';
 
-  const fault = Boolean(data.huoltoLaiteessaVika) || lampopumppuHasDeviceFault(data);
+  const fault = Boolean(data.huoltoLaiteessaVika) || hasReportFaults(data);
   const band = renderVerdictBand([
     verdictHtml(fault, data.huoltoLaiteessaVika === false || Boolean(data.huoltoSuoritettu)),
     data.huoltoSuoritettu ? '<span class="pill">Huolto suoritettu</span>' : '',
@@ -934,6 +935,7 @@ export function generateMaintenanceReportHtml(
 <div class="rp">
   ${renderPrintHeader({ logoUrl: meta.logoUrl, companyLine, title: docTitle, subtitle: [deviceTypeLabel(data.laiteTyyppi), kohteenTunniste].filter(Boolean).join(' · ') })}
   ${band}
+  ${renderFaultSummary(data)}
   ${info}
   ${body}
   ${renderSignatureRow({ name: String(data.huoltoSuorittajaNimi || ''), tukes: String(data.huoltoSuorittajaTUKES || ''), company: companyName, date: printDate })}
