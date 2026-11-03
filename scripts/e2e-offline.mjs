@@ -18,6 +18,10 @@ const mkReport = (id, eq, status, extra = {}) => ({ id, status, title: null, equ
 const db = { profiles: [profile], companies: [company], customers: [customer], equipment: [D1, D2], maintenance_reports: [mkReport(R1id, D1, 'draft')], equipment_notes: [] };
 const log = []; // palvelimelle tulleet kirjoitukset
 const hooks = { dropNextPostResponse: false };
+// Postgres jsonb palauttaa avaimet lyhyet ensin, sitten aakkosjärjestyksessä (EI client-järjestyksessä) → mock toistaa sen
+const jsonbOrder = (v) => Array.isArray(v) ? v.map(jsonbOrder) : v && typeof v === 'object'
+  ? Object.fromEntries(Object.keys(v).sort((a, b) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0)).map((k) => [k, jsonbOrder(v[k])])) : v;
+const asJsonb = (r) => (r && r.data && typeof r.data === 'object' ? { ...r, data: jsonbOrder(r.data) } : r);
 const rowsOf = (t) => db[t] ?? [];
 function applyFilters(list, u) {
   let out = [...list];
@@ -75,7 +79,7 @@ await ctx.route('https://mock.supabase.co/**', async (route) => {
     for (const r of arr) {
       const id = r.id ?? crypto.randomUUID();
       if (db[t].some((x) => x.id === id)) return json({ code: '23505', message: 'duplicate key' }, 409);
-      const row = { created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...r, id }; db[t].push(row); made.push(row);
+      const row = { created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...asJsonb(r), id }; db[t].push(row); made.push(row);
       log.push({ op: 'insert', table: t, id, equipment_id: row.equipment_id, status: row.status });
     }
     if (hooks.dropNextPostResponse && t === 'maintenance_reports') { hooks.dropNextPostResponse = false; return route.abort('failed'); }
@@ -83,7 +87,7 @@ await ctx.route('https://mock.supabase.co/**', async (route) => {
     return route.fulfill({ status: 201, body: '' });
   }
   if (m === 'PATCH') {
-    const targets = applyFilters(db[t], u); const patch = req.postDataJSON();
+    const targets = applyFilters(db[t], u); const patch = asJsonb(req.postDataJSON());
     for (const r of targets) { Object.assign(r, patch, { updated_at: new Date().toISOString() }); log.push({ op: 'update', table: t, id: r.id, equipment_id: r.equipment_id }); }
     if (prefer.includes('return=representation')) return json(single ? targets[0] ?? null : targets);
     return route.fulfill({ status: 204, body: '' });
@@ -166,23 +170,47 @@ checks['uusi pöytäkirja synkronoitu täsmälleen kerran'] = created.length ===
 checks['uusi pöytäkirja sidottu OIKEAAN laitteeseen (JK14)'] = created[0]?.equipment_id === D2.id;
 checks['laite JK14 ei saanut JK10:n raporttia (ei ristiin)'] = db.maintenance_reports.filter((r) => r.equipment_id === D1.id).length === 1;
 
-// 5) Ristiriita: offline-muokkaus + palvelimella uudempi muutos → molemmat säilyvät
+// 5a) Ei väärää ristiriitaa: ensin muokkaus verkossa (suora tallennus), sitten offline-muokkaus → synkronointi samaan raporttiin ilman kopiota/ristiriitailmoitusta
+await p.goto(`${BASE}/huoltoraportit/${R1id}`); await wait(5000);
+await openHuomiot();
+await huomiotLoc().fill('ONLINE-ENSIN').catch(() => {}); await huomiotLoc().blur(); await wait(500);
+await p.locator('button:visible', { hasText: 'Tallenna luonnos' }).first().click().catch(() => {}); await wait(3500);
+checks['verkossa tallennettu palvelimelle'] = JSON.stringify(srvR1.data).includes('ONLINE-ENSIN');
+await ctx.setOffline(true); await wait(500);
+await huomiotLoc().fill('OFFLINE-TOINEN').catch(() => {}); await huomiotLoc().blur(); await wait(500);
+await p.locator('button:visible', { hasText: 'Tallenna luonnos' }).first().click().catch(() => {}); await wait(4000);
+const cnt5a = db.maintenance_reports.length;
+await ctx.setOffline(false);
+await p.getByTestId('offline-status').filter({ hasText: 'Synkronoitu' }).waitFor({ timeout: 25000 }).catch(() => {});
+await wait(1500);
+checks['ei väärää ristiriitaa: ei kopiota'] = db.maintenance_reports.length === cnt5a && !db.maintenance_reports.some((r) => r.data?.offlineKopioAlkuperaisesta);
+checks['ei väärää ristiriitaa: offline-muutos samassa raportissa'] = JSON.stringify(srvR1.data).includes('OFFLINE-TOINEN');
+checks['ei väärää ristiriitaa: ei ristiriitailmoitusta'] = !/Ristiriita/.test(await p.getByTestId('offline-status').innerText().catch(() => ''));
+
+// 5b) Aito ristiriita: offline-muokkaus + palvelimella toisen laitteen muutos → YHDISTETÄÄN samaan raporttiin (ei kopiota)
 await p.goto(`${BASE}/huoltoraportit/${R1id}`); await wait(5000);
 await ctx.setOffline(true); await wait(500);
 await p.reload(); await wait(6000); await openHuomiot();
 await huomiotLoc().fill('KONFLIKTI-OFFLINE').catch(() => {}); await huomiotLoc().blur(); await wait(1000);
 await p.locator('button:visible', { hasText: 'Tallenna luonnos' }).first().click().catch(() => {}); await wait(5000);
-Object.assign(srvR1.data, { huomiot: 'SERVER-MUUTOS' }); srvR1.updated_at = new Date().toISOString();
+Object.assign(srvR1.data, { huomiot: 'SERVER-MUUTOS', laiteMalli: 'SERVER-MALLI', vierasAvain: 'SERVER-LISA' }); srvR1.updated_at = new Date().toISOString();
 const countBefore = db.maintenance_reports.length;
 await ctx.setOffline(false);
 const conflictShown = await p.getByTestId('offline-status').filter({ hasText: 'Ristiriita' }).waitFor({ timeout: 25000 }).then(() => true, () => false);
 await wait(1000);
-const copy = db.maintenance_reports.find((r) => r.data?.offlineKopioAlkuperaisesta === R1id);
-checks['ristiriita: kopio luotu (molemmat säilyvät)'] = Boolean(copy) && db.maintenance_reports.length === countBefore + 1;
-checks['ristiriita: kopiossa offline-teksti'] = JSON.stringify(copy?.data ?? {}).includes('KONFLIKTI-OFFLINE');
-checks['ristiriita: alkuperäinen pitää palvelimen muutoksen'] = srvR1.data.huomiot === 'SERVER-MUUTOS' && !JSON.stringify(srvR1.data).includes('KONFLIKTI-OFFLINE');
-checks['ristiriita: kopio on luonnos samalla laitteella'] = copy?.status === 'draft' && copy?.equipment_id === D1.id;
-checks['ristiriita: tilarivi kertoo'] = conflictShown;
+checks['ristiriita: EI kopiota (raporttien määrä ennallaan)'] = db.maintenance_reports.length === countBefore && !db.maintenance_reports.some((r) => r.data?.offlineKopioAlkuperaisesta || /kopio/i.test(r.title ?? ''));
+checks['ristiriita: laitteella vain yksi luonnos'] = db.maintenance_reports.filter((r) => r.equipment_id === D1.id && r.status === 'draft').length === 1;
+checks['ristiriita: offline-teksti samassa raportissa'] = JSON.stringify(srvR1.data).includes('KONFLIKTI-OFFLINE');
+checks['ristiriita: palvelimen huomiot-muutos säilyi (laite ei muuttanut sitä)'] = srvR1.data.huomiot === 'SERVER-MUUTOS';
+checks['ristiriita: palvelimen muu muutos säilyi (laiteMalli)'] = srvR1.data.laiteMalli === 'SERVER-MALLI';
+checks['ristiriita: palvelimen tuntematon kenttä säilyi'] = srvR1.data.vierasAvain === 'SERVER-LISA';
+checks['ristiriita: tilarivi kertoo yhdistämisestä'] = conflictShown && /yhdistetty samaan raporttiin/.test(await p.getByTestId('offline-status').innerText().catch(() => ''));
+
+// 5c) Yksi luonnos per laite: laitteen uusi huolto avaa olemassa olevan luonnoksen eikä luo toista
+const draftsD1 = db.maintenance_reports.filter((r) => r.equipment_id === D1.id && r.status === 'draft').length;
+await p.goto(`${BASE}/huoltoraportit/uusi?customerId=${custId}&equipmentId=${D1.id}`); await wait(6000);
+checks['uusi huolto laitteelle avaa olemassa olevan luonnoksen'] = p.url().includes(`/huoltoraportit/${R1id}`);
+checks['uusi huolto laitteelle ei luonut toista luonnosta'] = db.maintenance_reports.filter((r) => r.equipment_id === D1.id && r.status === 'draft').length === draftsD1;
 
 // 6) Vastaus katoaa (palvelin tallensi, yhteys katkesi): jonotus + uusintayritys ei tee kaksoiskappaletta
 hooks.dropNextPostResponse = true;

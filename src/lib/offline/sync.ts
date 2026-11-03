@@ -30,6 +30,8 @@ export type OfflineStatus = {
   pending: number;
   failed: number;
   conflicts: number;
+  /** vanhoja (ennen yhdistämistä luotuja) offline-kopioita */
+  conflictCopies: number;
   flushing: boolean;
   /** true hetken sen jälkeen kun jono tyhjeni synkronoinnissa */
   justSynced: boolean;
@@ -41,6 +43,7 @@ let status: OfflineStatus = {
   pending: 0,
   failed: 0,
   conflicts: 0,
+  conflictCopies: 0,
   flushing: false,
   justSynced: false,
   authNeeded: false,
@@ -54,12 +57,15 @@ function setStatus(patch: Partial<OfflineStatus>) {
 export async function refreshOfflineStatus(): Promise<void> {
   try {
     const list = await listOutbox();
-    const conflicts = (await listConflicts()).length;
+    const conflictList = await listConflicts();
+    const conflicts = conflictList.length;
+    const conflictCopies = conflictList.filter((c) => !!c.copyId).length;
     setStatus({
       online: navigator.onLine,
       pending: list.filter((e) => e.state === 'pending').length,
       failed: list.filter((e) => e.state === 'failed').length,
       conflicts,
+      conflictCopies,
     });
   } catch {
     /* IndexedDB ei käytettävissä */
@@ -86,24 +92,109 @@ async function failText(res: Response): Promise<string> {
 
 const IGNORE_KEYS = new Set(['updated_at']);
 
+/**
+ * Vakaa JSON-muoto vertailuun: avaimet aakkosjärjestykseen rekursiivisesti.
+ * Postgres jsonb palauttaa avaimet omassa järjestyksessään (lyhyet ensin), joten pelkkä JSON.stringify-vertailu
+ * näytti "ristiriitaa" vaikka sisältö oli täsmälleen sama.
+ */
+export function canonJson(v: unknown): string {
+  const norm = (x: unknown): unknown => {
+    if (Array.isArray(x)) return x.map(norm);
+    if (x && typeof x === 'object') {
+      const o: Record<string, unknown> = {};
+      for (const k of Object.keys(x as Record<string, unknown>).sort()) o[k] = norm((x as Record<string, unknown>)[k]);
+      return o;
+    }
+    return x ?? null;
+  };
+  return JSON.stringify(norm(v));
+}
+
+const canonFromString = (str: string): string => {
+  try {
+    return canonJson(JSON.parse(str));
+  } catch {
+    return str;
+  }
+};
+
 /** Kolmitieyhdistys: ristiriita jos palvelimen arvo poikkeaa sekä lähtötilasta, omista aiemmista lähetyksistä että uudesta arvosta. */
 export function findConflictKeys(server: Row, payload: Row, base: Row, sent: Record<string, string[]>): string[] {
   const keys: string[] = [];
   for (const [key, value] of Object.entries(payload)) {
     if (IGNORE_KEYS.has(key)) continue;
     if (!(key in base)) continue; // lähtötilaa ei tiedetä → ei voida todistaa ristiriitaa
-    const s = JSON.stringify(server[key] ?? null);
-    if (s === JSON.stringify(value ?? null)) continue;
-    if (s === JSON.stringify(base[key] ?? null)) continue;
-    if ((sent[key] ?? []).includes(s)) continue;
+    const s = canonJson(server[key]);
+    if (s === canonJson(value)) continue;
+    if (s === canonJson(base[key])) continue;
+    if ((sent[key] ?? []).some((x) => canonFromString(x) === s)) continue;
     keys.push(key);
   }
   return keys;
 }
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+
+export type MergeNote = { path: string; server: string };
+
+/**
+ * Yhdistä ristiriitainen JSON-arvo samaan riviin (ei kopiota): kenttä kerrallaan.
+ * - vain palvelin muuttanut → palvelimen arvo säilyy
+ * - vain laite muuttanut → laitteen arvo
+ * - molemmat muuttaneet samaa kenttää → laitteen (tuoreempi) arvo; syrjäytetty palvelimen arvo kirjataan notes-listaan
+ */
+export function mergeJsonConflict(server: unknown, mine: unknown, base: unknown, notes: MergeNote[], path = ''): unknown {
+  if (canonJson(server) === canonJson(mine)) return server;
+  if (!isPlainObject(server) || !isPlainObject(mine)) {
+    if (canonJson(server) === canonJson(base)) return mine; // vain laite muutti
+    if (canonJson(mine) === canonJson(base)) return server; // vain palvelin muutti
+    notes.push({ path, server: canonJson(server).slice(0, 200) });
+    return mine;
+  }
+  const b = isPlainObject(base) ? base : {};
+  const out: Record<string, unknown> = { ...server };
+  for (const [k, mv] of Object.entries(mine)) {
+    const sv = server[k];
+    const sub = path ? `${path}.${k}` : k;
+    if (!(k in server)) {
+      out[k] = mv;
+      continue;
+    }
+    if (canonJson(sv) === canonJson(mv)) continue;
+    if (canonJson(sv) === canonJson(b[k])) {
+      out[k] = mv;
+      continue;
+    }
+    if (canonJson(mv) === canonJson(b[k])) continue; // palvelimen muutos säilyy
+    out[k] = isPlainObject(sv) && isPlainObject(mv) ? mergeJsonConflict(sv, mv, b[k], notes, sub) : (notes.push({ path: sub, server: canonJson(sv).slice(0, 200) }), mv);
+  }
+  return out;
+}
+
+/** Ratkaise ristiriitaiset sarakkeet samalle riville: palauttaa PATCH-hyötykuorman ja syrjäytetyt palvelinarvot. */
+export function resolveConflictPayload(server: Row, payload: Row, base: Row, conflictKeys: string[]): { payload: Row; notes: MergeNote[] } {
+  const notes: MergeNote[] = [];
+  const out: Row = { ...payload };
+  for (const key of conflictKeys) {
+    if (isPlainObject(server[key]) && isPlainObject(payload[key])) {
+      out[key] = mergeJsonConflict(server[key], payload[key], base[key], notes, key) as never;
+    } else if (key === 'status' || key === 'completed_at') {
+      // Älä palauta valmista/lähetettyä raporttia takaisin luonnokseksi vanhalla tiedolla.
+      if (server.status && server.status !== 'draft') {
+        delete out.status;
+        delete out.completed_at;
+      }
+    } else {
+      notes.push({ path: key, server: canonJson(server[key]).slice(0, 200) });
+    }
+  }
+  return { payload: out, notes };
+}
+
 type ReplayResult = { kind: 'done' } | { kind: 'failed'; error: string };
 
-async function replay(e: OutboxEntry): Promise<ReplayResult> {
+async function replay(entry: OutboxEntry): Promise<ReplayResult> {
+  let e = entry;
   if (!cfg) throw new TransientError('config');
   const h = { ...(await cfg.getHeaders()), 'Content-Type': 'application/json' };
   const url = `${cfg.restBase}/${e.table}`;
@@ -132,23 +223,10 @@ async function replay(e: OutboxEntry): Promise<ReplayResult> {
       const sent = (await getRow(e.table, e.id))?.sent ?? {};
       const conflictKeys = findConflictKeys(server, e.payload, e.base, sent);
       if (conflictKeys.length > 0) {
-        // Palvelimella uudempi muutos: säilytä molemmat → offline-versio omaksi luonnoksekseen.
-        const { id: _id, created_at: _c, updated_at: _u, completed_at: _done, ...rest } = server;
-        void _id; void _c; void _u; void _done;
-        const copyId = crypto.randomUUID();
-        const merged: Row = { ...rest, ...e.payload, id: copyId, status: 'draft', completed_at: null };
-        const title = (merged.title as string | null) ?? null;
-        merged.title = title ? `${title} (offline-kopio)` : 'Offline-kopio';
-        if (merged.data && typeof merged.data === 'object') {
-          merged.data = { ...(merged.data as Row), offlineKopioAlkuperaisesta: e.id, offlineKopioAika: new Date().toISOString() };
-        }
-        const res = await real(url, { method: 'POST', headers: { ...h, Prefer: 'return=minimal' }, body: JSON.stringify(merged) });
-        if (!res.ok && res.status !== 409) {
-          if (res.status === 401 || res.status >= 500) classify(res);
-          return { kind: 'failed', error: await failText(res) };
-        }
-        await addConflict({ id: e.id, copyId, table: e.table, at: Date.now() });
-        return { kind: 'done' };
+        // Palvelimella toisen laitteen/välilehden muutos samaan raporttiin: yhdistä SAMAAN raporttiin (ei kopiota).
+        const resolved = resolveConflictPayload(server, e.payload, e.base, conflictKeys);
+        await addConflict({ id: e.id, table: e.table, at: Date.now(), merged: true, notes: resolved.notes.slice(0, 20) });
+        e = { ...e, payload: resolved.payload };
       }
     }
     await recordSent(e.table, e.id, e.payload);
