@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { matchesFilter, parseRestUrl, projectRow, sortRows, splitTopLevel } from '../src/lib/offline/restQuery';
-import { findConflictKeys } from '../src/lib/offline/sync';
+import { canonJson, findConflictKeys, mergeJsonConflict, resolveConflictPayload } from '../src/lib/offline/sync';
 import { applyOverlay } from '../src/lib/offline/store';
 
 const base = 'https://x.supabase.co/rest/v1';
@@ -32,4 +32,24 @@ assert.deepEqual(findConflictKeys({ data: 'C' }, { data: 'B' }, { data: 'A' }, {
 assert.deepEqual(findConflictKeys({ data: 'B1' }, { data: 'B2' }, { data: 'A' }, { data: [JSON.stringify('B1')] }), []);
 assert.deepEqual(findConflictKeys({ data: 'C' }, { data: 'C' }, { data: 'A' }, {}), []);
 assert.deepEqual(findConflictKeys({ completed_at: null }, { completed_at: 'x' }, {}, {}), []); // lähtötila tuntematon → ei väitetä ristiriitaa
+// Postgres jsonb järjestää avaimet uudelleen → sama sisältö eri avainjärjestyksellä EI ole ristiriita (juurisyy kaksoisluonnokseen)
+const clientOrder = { laiteTyyppi: 'ilp', a: 1, huomiot: 'x', nested: { zz: 1, b: 2 } };
+const jsonbOrder = { a: 1, nested: { b: 2, zz: 1 }, huomiot: 'x', laiteTyyppi: 'ilp' };
+assert.equal(canonJson(clientOrder), canonJson(jsonbOrder));
+assert.deepEqual(findConflictKeys({ data: jsonbOrder }, { data: { ...clientOrder, huomiot: 'y' } }, { data: clientOrder }, {}), []); // base client-järjestyksessä
+assert.deepEqual(findConflictKeys({ data: jsonbOrder }, { data: { ...clientOrder, huomiot: 'y' } }, { data: { a: 0 } }, { data: [JSON.stringify(clientOrder)] }), []); // vanha sent-merkintä
+assert.deepEqual(findConflictKeys({ data: { ...jsonbOrder, huomiot: 'srv' } }, { data: { ...clientOrder, huomiot: 'y' } }, { data: clientOrder }, {}), ['data']); // aito ristiriita
+// Ristiriidan ratkaisu samaan riviin: palvelimen muutokset säilyvät, laitteen muutokset tulevat mukaan, ei kopiota
+const notes: { path: string; server: string }[] = [];
+const merged = mergeJsonConflict(
+  { a: 1, huomiot: 'srv', malli: 'SRV', extra: 'E' },
+  { a: 1, huomiot: 'dev', malli: 'M1', uusi: 'U' },
+  { a: 1, huomiot: 'alku', malli: 'M1' },
+  notes,
+) as Record<string, unknown>;
+assert.deepEqual(merged, { a: 1, huomiot: 'dev', malli: 'SRV', extra: 'E', uusi: 'U' });
+assert.deepEqual(notes.map((n) => n.path), ['huomiot']);
+const res = resolveConflictPayload({ status: 'submitted', data: { a: 2 } }, { status: 'draft', completed_at: null, data: { a: 1, b: 1 } }, { status: 'draft', completed_at: null, data: { a: 1 } }, ['status', 'data']);
+assert.equal('status' in res.payload, false); // valmista ei palauteta luonnokseksi
+assert.deepEqual(res.payload.data, { a: 2, b: 1 });
 console.log('offline-logic ok');

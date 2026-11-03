@@ -29,7 +29,7 @@ export default function OfflineBanner() {
     tone = 'error';
     action = { label: 'Yritä uudelleen', run: () => void retryFailed() };
   } else if (s.conflicts > 0) {
-    text = 'Ristiriita: kopio luotu';
+    text = s.conflictCopies > 0 ? 'Ristiriita: vanha kopio luotu – tarkista luonnokset' : 'Ristiriita: muutokset yhdistetty samaan raporttiin';
     action = { label: 'Selvä', run: () => void clearConflicts().then(refreshOfflineStatus) };
   } else if (s.pending > 0 || s.flushing) {
     text = `Synkronoidaan… ${s.pending}`;

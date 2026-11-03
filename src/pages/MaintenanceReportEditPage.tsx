@@ -1,3 +1,4 @@
+import { OPEN_DRAFT_FLASH, findOpenDraftForEquipment } from '../lib/huoltoRaportti/openDraftGuard';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { emitDataChanged } from '../lib/dataRefresh';
@@ -799,14 +800,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (!eid) return;
     existingDraftCheckedRef.current = true;
     void (async () => {
-      const { data } = await supabase
-        .from('maintenance_reports')
-        .select('id')
-        .eq('equipment_id', eid)
-        .eq('status', 'draft')
-        .order('updated_at', { ascending: false })
-        .limit(1);
-      const draftId = (data as { id: string }[] | null)?.[0]?.id;
+      const draftId = await findOpenDraftForEquipment(supabase, eid);
       if (draftId) navigate(`/huoltoraportit/${draftId}`, { replace: true });
     })();
   }, [isNew, ownerCompanyId, searchParams, navigate]);
@@ -1751,6 +1745,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         setSavedReportTitle(title);
         emitDataChanged();
       } else {
+        // Yksi avoin luonnos per laite: jos laitteella on jo luonnos, avataan se eikä luoda toista.
+        const existingDraftId = await findOpenDraftForEquipment(supabase, rowPayload.equipment_id as string | null);
+        if (existingDraftId) {
+          navigate(`/huoltoraportit/${existingDraftId}`, {
+            replace: true,
+            state: { ...(typeof location.state === 'object' && location.state ? location.state : {}), siblingCopyFlash: OPEN_DRAFT_FLASH },
+          });
+          return false;
+        }
         const { data, error: insertError } = await supabase
           .from('maintenance_reports')
           .insert(rowPayload)

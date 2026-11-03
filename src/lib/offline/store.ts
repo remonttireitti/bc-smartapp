@@ -21,7 +21,8 @@ export type OutboxEntry = {
   attempts: number;
 };
 export type OfflineCustomer = { id: string; name: string; at: number; devices: number; reports: number };
-export type ConflictInfo = { id: string; copyId: string; table: string; at: number };
+/** copyId: vanhat (ennen yhdistämistä luodut) kopiot; merged: ristiriita yhdistettiin samaan riviin. */
+export type ConflictInfo = { id: string; copyId?: string; table: string; at: number; merged?: boolean; notes?: { path: string; server: string }[] };
 
 const rowKey = (table: string, id: string) => `${table}:${id}`;
 const SENT_KEEP = 12;
