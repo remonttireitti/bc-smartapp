@@ -336,7 +336,7 @@ export default function EquipmentDetailPage({ session }: Props) {
     setPrintBusy('history');
     try {
       const branding = await loadPrintBranding(customer.owner_company_id);
-      const entries = [...buildMaintenanceHistoryForEquipment(equipment, maintenanceRows, workRows, equipmentNotes), ...sharedRowsToHistoryEntries(sharedRows)].sort((a, b) => a.sortMs - b.sortMs);
+      const entries = [...buildMaintenanceHistoryForEquipment(equipment, maintenanceRows, workRows, equipmentNotes, customer.name), ...sharedRowsToHistoryEntries(sharedRows)].sort((a, b) => a.sortMs - b.sortMs);
       openPrintHtml(
         buildMaintenanceHistoryPrintHtml({
           customerName: customer.name,

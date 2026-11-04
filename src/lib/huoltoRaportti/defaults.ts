@@ -1333,13 +1333,30 @@ export function buildMaintenanceReportTitleFromData(
   return buildMaintenanceReportTitle(customerName, maintenanceReportTitleSnippet(data));
 }
 
+/**
+ * Tallennettu otsikko on tallennushetken tilannekuva ("Asiakas – laite ..."). Jos asiakkaan nimi on
+ * sen jälkeen muuttunut rekisterissä, vaihdetaan otsikon vanha nimi nykyiseen näytettäessä.
+ */
+export function refreshTitleCustomerName(
+  title: string,
+  snapshotName: string | null | undefined,
+  currentName: string | null | undefined,
+): string {
+  const oldName = snapshotName?.trim();
+  const newName = currentName?.trim();
+  if (!oldName || !newName || oldName === newName) return title;
+  const at = title.indexOf(oldName);
+  if (at < 0) return title;
+  return title.slice(0, at) + newName + title.slice(at + oldName.length);
+}
+
 export function resolveMaintenanceReportTitle(
   storedTitle: string | null | undefined,
   data: HuoltoReportData,
   customerName?: string | null,
 ): string {
   const trimmed = storedTitle?.trim();
-  if (trimmed) return trimmed;
+  if (trimmed) return refreshTitleCustomerName(trimmed, data.asiakas, customerName);
   const customer = customerName ?? (data.asiakas?.trim() || null);
   return buildMaintenanceReportTitleFromData(customer, data);
 }

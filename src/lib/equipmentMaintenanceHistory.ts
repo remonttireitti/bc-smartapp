@@ -2,7 +2,7 @@ import type { EquipmentNote } from './equipmentNotes';
 import { noteByline } from './equipmentNotes';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Equipment } from '../types';
-import { maintenanceReportListTitle, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
+import { buildMaintenanceReportTitleFromData, normalizeHuoltoReportData } from './huoltoRaportti/defaults';
 import { huoltoReportMatchesEquipment } from './equipmentHuoltoSnapshotSync';
 import { buildEquipmentCardPrintMainHtml } from './huoltoRaportti/equipmentCardPrintHtml';
 import { deviceTypeLabel } from './huoltoRaportti/equipmentSnapshotDisplay';
@@ -24,6 +24,8 @@ export type MaintenanceHistoryEntry = {
   faults?: ReportFault[];
   huomiotHighlight?: string;
   huomiotComment?: string;
+  /** Työraportin id: sama raportti usealla laitteella näytetään kokonaan vain ensimmäisellä. */
+  workReportId?: string;
 };
 
 type MaintenanceReportRow = {
@@ -44,6 +46,7 @@ type WorkReportRow = {
   logs?: Array<{ id: string; log_date: string | null; work_done: string; installer: string | null; tukes: string | null }>;
   company_name?: string | null;
   title: string;
+  heading?: string | null;
   description: string | null;
   scheduled_start: string | null;
   completed_at: string | null;
@@ -87,11 +90,15 @@ export function maintenanceDateYmd(row: MaintenanceReportRow, data: HuoltoReport
 function equipmentLabel(eq: Equipment): string {
   const tag = eq.tag?.trim();
   const name = eq.name?.trim() || 'Laite';
-  return tag ? `${tag} — ${name}` : name;
+  return tag && tag !== name ? `${tag} — ${name}` : name;
 }
 
-function huoltoSummary(data: HuoltoReportData): { summary: string; faults: ReportFault[]; huomiotComment?: string } {
-  const summary = maintenanceReportListTitle(data);
+function huoltoSummary(
+  data: HuoltoReportData,
+  customerName?: string | null,
+): { summary: string; faults: ReportFault[]; huomiotComment?: string } {
+  // Asiakkaan nimi rekisteristä (ei raporttiin tallennettua vanhaa nimeä).
+  const summary = buildMaintenanceReportTitleFromData(customerName?.trim() || data.asiakas?.trim() || null, data);
   const faults = collectReportFaults(data);
   const notes = plainNoteText(data.huomiot);
   // Vika-luonteinen huomio on jo vikalistassa; muu huomio omana rivinään.
@@ -101,6 +108,18 @@ function huoltoSummary(data: HuoltoReportData): { summary: string; faults: Repor
     faults,
     huomiotComment: !isFaultNote && notes ? notes : undefined,
   };
+}
+
+/**
+ * Työraportin kuvaus historiaan. Otsikko ("Asiakas – ...") sisältää tallennushetken asiakasnimen,
+ * ja asiakas näkyy tulosteen otsikossa, joten käytetään otsikko + kuvaus -parin sijaan
+ * otsikkoa (heading) ja kuvausta. Vanhoilla riveillä ilman otsikkoa kuvaus riittää.
+ */
+function workReportSummaryText(row: WorkReportRow): string {
+  const heading = row.heading?.trim();
+  const description = row.description?.trim();
+  if (heading) return [heading, description && description !== heading ? description : null].filter(Boolean).join(' — ');
+  return description || row.title?.trim() || 'Työraportti';
 }
 
 function workDateLabel(row: WorkReportRow): string {
@@ -169,7 +188,7 @@ export async function loadCustomerMaintenanceContext(
       .eq('customer_id', customerId),
     supabase
       .from('work_reports')
-      .select('id, equipment_id, owner_company_id, title, description, scheduled_start, completed_at, updated_at, created_at')
+      .select('id, equipment_id, owner_company_id, title, heading, description, scheduled_start, completed_at, updated_at, created_at')
       .eq('customer_id', customerId),
   ]);
 
@@ -264,6 +283,7 @@ export function buildMaintenanceHistoryForEquipment(
   maintenanceRows: MaintenanceReportRow[],
   workRows: WorkReportRow[],
   notes?: EquipmentNote[] | null,
+  customerName?: string | null,
 ): MaintenanceHistoryEntry[] {
   const entries: MaintenanceHistoryEntry[] = [];
 
@@ -297,6 +317,7 @@ export function buildMaintenanceHistoryForEquipment(
         sortMs: parseMaintenanceDateMs(last) || workSortMs(row),
         dateLabel: last ? formatMaintenanceDateFi(last) : workDateLabel(row),
         summary: by ? `${text} (${by})` : text,
+        workReportId: row.id,
       });
       continue;
     }
@@ -304,7 +325,8 @@ export function buildMaintenanceHistoryForEquipment(
       kind: 'työraportti',
       sortMs: workSortMs(row),
       dateLabel: workDateLabel(row),
-      summary: [row.title, row.description].filter(Boolean).join(' — ') || 'Työraportti',
+      summary: workReportSummaryText(row),
+      workReportId: row.id,
     });
   }
 
@@ -314,7 +336,7 @@ export function buildMaintenanceHistoryForEquipment(
       (row.equipment_id && row.equipment_id === equipment.id) ||
       (!row.equipment_id && huoltoReportMatchesEquipment(data, equipment));
     if (!matches) continue;
-    const huolto = huoltoSummary(data);
+    const huolto = huoltoSummary(data, customerName);
     entries.push({
       kind: 'huoltoraportti',
       sortMs: huoltoSortMs(row, data),
@@ -334,10 +356,46 @@ export function buildMaintenanceHistorySectionsForEquipmentList(
   maintenanceRows: MaintenanceReportRow[],
   workRows: WorkReportRow[],
   notes?: EquipmentNote[] | null,
+  customerName?: string | null,
 ): Array<{ deviceLabel: string; entries: MaintenanceHistoryEntry[] }> {
-  return equipmentList.map((eq) => ({
+  const sections = equipmentList.map((eq) => ({
     deviceLabel: equipmentLabel(eq),
-    entries: buildMaintenanceHistoryForEquipment(eq, maintenanceRows, workRows, notes),
+    shortLabel: eq.tag?.trim() || eq.name?.trim() || 'Laite',
+    entries: buildMaintenanceHistoryForEquipment(eq, maintenanceRows, workRows, notes, customerName),
+  }));
+  return dedupeSharedHistoryText(sections).map(({ deviceLabel, entries }) => ({ deviceLabel, entries }));
+}
+
+/**
+ * Sama työraportti usealla laitteella: koko teksti vain ensimmäisen laitteen kohdalla,
+ * muilla viite ("Ks. JK F81"). Sama huomautusteksti samalta päivältä usealla laitteella
+ * toimii samoin. Laitekohtaiset viat (Viat:) säilyvät jokaisella laitteella.
+ */
+export function dedupeSharedHistoryText<T extends { shortLabel: string; entries: MaintenanceHistoryEntry[] }>(
+  sections: T[],
+): T[] {
+  const firstWork = new Map<string, string>();
+  const firstComment = new Map<string, string>();
+  return sections.map((sec) => ({
+    ...sec,
+    entries: sec.entries.map((entry) => {
+      let next = entry;
+      if (entry.workReportId) {
+        const first = firstWork.get(entry.workReportId);
+        if (first === undefined) firstWork.set(entry.workReportId, sec.shortLabel);
+        else if (first !== sec.shortLabel) {
+          const day = entry.dateLabel.split(' ')[0];
+          next = { ...next, summary: `Ks. ${first} (työraportti ${day})` };
+        }
+      }
+      if (entry.huomiotComment) {
+        const key = `${entry.dateLabel}|${entry.huomiotComment.trim().toLowerCase()}`;
+        const first = firstComment.get(key);
+        if (first === undefined) firstComment.set(key, sec.shortLabel);
+        else if (first !== sec.shortLabel) next = { ...next, huomiotComment: `ks. ${first}` };
+      }
+      return next;
+    }),
   }));
 }
 

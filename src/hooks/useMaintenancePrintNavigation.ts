@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { maintenanceReportListTitle } from '../lib/huoltoRaportti/defaults';
+import { maintenanceReportListTitle, refreshTitleCustomerName } from '../lib/huoltoRaportti/defaults';
 import { huoltoCategoryLabel, isChecklistCategory } from '../lib/huoltoCategories';
 import type { HuoltoReportData } from '../lib/huoltoRaportti/types';
 import {
@@ -39,8 +39,8 @@ export function useMaintenancePrintNavigation(reportId: string | undefined, repo
     const pageLabel = !reportData
       ? 'Huoltoraportti'
       : isChecklistCategory(checklistCat)
-        ? [reportData.asiakas?.trim(), huoltoCategoryLabel(checklistCat)].filter(Boolean).join(' – ')
-        : maintenanceReportListTitle(reportData);
+        ? [(loadedCustomerName || reportData.asiakas)?.trim(), huoltoCategoryLabel(checklistCat)].filter(Boolean).join(' – ')
+        : refreshTitleCustomerName(maintenanceReportListTitle(reportData), reportData.asiakas, loadedCustomerName);
     const printLabel = 'Tuloste';
 
     let reportTrail: NavigationTrailState | null = inherited;

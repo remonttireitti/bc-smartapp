@@ -462,7 +462,7 @@ export default function CustomerDetailPage({ session }: Props) {
     setError(null);
     try {
       const branding = await loadPrintBranding(customer.owner_company_id);
-      const entries = buildMaintenanceHistoryForEquipment(eq, maintenanceRows, workRows, equipmentNotes);
+      const entries = buildMaintenanceHistoryForEquipment(eq, maintenanceRows, workRows, equipmentNotes, customer.name);
       const html = buildMaintenanceHistoryPrintHtml({
         customerName: customer.name,
         sections: [{ deviceLabel: equipmentLabel(eq), entries }],
@@ -554,7 +554,7 @@ export default function CustomerDetailPage({ session }: Props) {
     setError(null);
     try {
       const branding = await loadPrintBranding(customer.owner_company_id);
-      const sections = buildMaintenanceHistorySectionsForEquipmentList(list, maintenanceRows, workRows, equipmentNotes);
+      const sections = buildMaintenanceHistorySectionsForEquipmentList(list, maintenanceRows, workRows, equipmentNotes, customer.name);
       openPrintHtml(
         buildMaintenanceHistoryPrintHtml({
           customerName: customer.name,
