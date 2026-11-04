@@ -92,7 +92,7 @@ export async function loadCustomerLinkedDocuments(
   options?: { portalReadOnly?: boolean },
 ): Promise<CustomerLinkedDocument[]> {
   const portalReadOnly = options?.portalReadOnly === true;
-  const [workResult, maintenanceResult, quoteResult, tempReportResult, fileResult] = await Promise.all([
+  const [workResult, maintenanceResult, quoteResult, tempReportResult, fileResult, customerNameResult] = await Promise.all([
     supabase
       .from('work_reports')
       .select('id, title, status, created_at, updated_at, equipment_id, created_by_user_id, owner_company_id, created_by_company_id, equipment:equipment_id(name, tag)')
@@ -118,7 +118,10 @@ export async function loadCustomerLinkedDocuments(
       .select('id, file_name, file_path, mime_type, created_at, equipment_id, equipment(name, tag)')
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false }),
+    supabase.from('customers').select('name').eq('id', customerId).maybeSingle(),
   ]);
+  // Otsikoissa näytetään asiakkaan nykyinen nimi, ei raporttiin tallennettua vanhaa.
+  const liveCustomerName = (customerNameResult.data as { name: string | null } | null)?.name?.trim() || null;
 
   if (workResult.error) console.error(workResult.error);
   if (maintenanceResult.error) console.error(maintenanceResult.error);
@@ -223,6 +226,7 @@ export async function loadCustomerLinkedDocuments(
       title: resolveMaintenanceReportTitle(
         report.title,
         report.data ?? ({} as HuoltoReportData),
+        liveCustomerName,
       ),
       // Huoltopäivä raportilta (ei muokkausaikaleimaa, joka muuttuu jokaisesta tallennuksesta).
       date: maintenanceServiceDate(report.data) || report.updated_at || report.created_at,
