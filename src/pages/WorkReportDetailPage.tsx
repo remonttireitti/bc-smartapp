@@ -860,6 +860,20 @@ export function DailyLogFields({
             value={form.hours_on_call}
             onChange={(hours_on_call) => setForm({ ...form, hours_on_call })}
             quickbarAriaLabel="Lisää päivystystunteja"
+            hint={
+              <>
+                Syötä määrä — tunnit menevät Työt-sarakkeeseen
+                {defaultHourlyRate != null && defaultHourlyRate > 0
+                  ? ` (kumppani ${defaultHourlyRate} €/h`
+                  : ''}
+                {defaultCustomerHourlyRate != null && defaultCustomerHourlyRate > 0
+                  ? `${defaultHourlyRate != null && defaultHourlyRate > 0 ? ',' : ' ('}asiakas ${defaultCustomerHourlyRate} €/h)`
+                  : defaultHourlyRate != null && defaultHourlyRate > 0
+                    ? ')'
+                    : ''}
+                . Lähtökorvaus lisätään erikseen kuluna (esim. 100 € / 130 €).
+              </>
+            }
           />
         )}
         {showHourlyRate && !showFixed && (
@@ -4925,18 +4939,34 @@ export default function WorkReportDetailPage({ session }: Props) {
           partnerBillingEnabled={partnerBillingOn}
           showCustomerExpenseFields={showCustomerBillingFeatures}
           showExtraBillingToggle={reportHasUrakka}
-          defaultHourlyRate={
-            billableCalculation?.ratesUsed.hourly_regular
-            ?? partnershipRatesPreview.hourly_regular
-            ?? reportRatesDraft.hourly_regular
-            ?? null
-          }
-          defaultCustomerHourlyRate={
-            customerBillableCalculation?.ratesUsed.hourly_regular
-            ?? companyCustomerRatesPreview.hourly_regular
-            ?? customerReportRatesDraft.hourly_regular
-            ?? null
-          }
+          defaultHourlyRate={(() => {
+            const kind: 'hourly_regular' | 'hourly_overtime' | 'hourly_on_call' =
+              logForm.entry_type === 'on_call'
+                ? 'hourly_on_call'
+                : logForm.entry_type === 'overtime'
+                  ? 'hourly_overtime'
+                  : 'hourly_regular';
+            return (
+              billableCalculation?.ratesUsed[kind]
+              ?? partnershipRatesPreview[kind]
+              ?? reportRatesDraft[kind]
+              ?? null
+            );
+          })()}
+          defaultCustomerHourlyRate={(() => {
+            const kind: 'hourly_regular' | 'hourly_overtime' | 'hourly_on_call' =
+              logForm.entry_type === 'on_call'
+                ? 'hourly_on_call'
+                : logForm.entry_type === 'overtime'
+                  ? 'hourly_overtime'
+                  : 'hourly_regular';
+            return (
+              customerBillableCalculation?.ratesUsed[kind]
+              ?? companyCustomerRatesPreview[kind]
+              ?? customerReportRatesDraft[kind]
+              ?? null
+            );
+          })()}
           showAgreedRegularHours={
             agreedRegularSupported
             && (hourBillingSettings.partner_mode === 'daily_overtime'

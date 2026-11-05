@@ -142,6 +142,19 @@ export function patchExpenseDraft(
 ): ExpenseDraft {
   const next = { ...row, ...patch };
   if (resolveExpenseBillingMode(next) === 'partner_and_customer') {
+    // Käyttäjä syötti asiakashinnan suoraan → pidä se, päivitä kate-% hinnoista.
+    if (Object.prototype.hasOwnProperty.call(patch, 'customer_unit_price')) {
+      const partner = parseFiNumber(next.unit_price);
+      const customer = parseFiNumber(next.customer_unit_price);
+      if (partner > 0 && customer > 0) {
+        return {
+          ...next,
+          partner_expense_margin_percent: String(inferPartnerExpenseMarginPercent(partner, customer)),
+          customer_unit_price: String(customer),
+        };
+      }
+      return next;
+    }
     return syncExpenseCustomerPriceFromPartner(next);
   }
   if (resolveExpenseBillingMode(next) === 'customer_only') {

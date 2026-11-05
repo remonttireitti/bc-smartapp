@@ -613,6 +613,21 @@ function ExpenseLineEditor({
                   }
                 />
               </label>
+              <label>
+                Asiakashinta (€)
+                <input
+                  inputMode="decimal"
+                  value={row.customer_unit_price}
+                  readOnly={autoTripKm}
+                  disabled={autoTripKm}
+                  onChange={(e) =>
+                    updateExpenseRow(
+                      patchExpenseDraft(row, { customer_unit_price: e.target.value }),
+                    )
+                  }
+                  placeholder="Esim. 130"
+                />
+              </label>
               {partnerCustomerPreview != null ? (
                 <p className="muted expense-billing-preview">
                   Asiakkaalle laskutettava: <strong>{formatEuro(partnerCustomerPreview)}</strong>
@@ -624,10 +639,11 @@ function ExpenseLineEditor({
                       %)
                     </>
                   ) : null}
+                  . Voit syöttää asiakashinnan suoraan (esim. lähtökorvaus 100 / 130).
                 </p>
               ) : (
                 <p className="muted expense-billing-preview">
-                  Täytä kumppanihinta — asiakashinta lasketaan automaattisesti.
+                  Täytä kumppanihinta ja asiakashinta (esim. päivystyslähtö 100 € / 130 €).
                 </p>
               )}
             </div>

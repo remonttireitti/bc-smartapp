@@ -20,14 +20,18 @@ const baseForm = {
   customer_hourly_rate_override: '85',
 };
 
+const noQuoteBilling = buildCustomerExtraBillingFromLogForm({
+  ...baseForm,
+  hours_extra_billable: false,
+  hours_extra_billing_allowed: false,
+});
 assert.equal(
-  hoursExtraBillingLabel(
-    buildCustomerExtraBillingFromLogForm({
-      ...baseForm,
-      hours_extra_billable: false,
-      hours_extra_billing_allowed: false,
-    }),
-  ),
+  hoursExtraBillingLabel(noQuoteBilling),
+  null,
+  'ilman linkitettyä tarjousta ei "kuuluu tarjoukseen"',
+);
+assert.equal(
+  hoursExtraBillingLabel(noQuoteBilling, { linkedQuoteRequest: true }),
   'kuuluu tarjoukseen',
 );
 
@@ -37,7 +41,10 @@ const pending = buildCustomerExtraBillingFromLogForm({
   hours_extra_billing_allowed: false,
   hours_extra_hours: '5',
 });
-assert.equal(hoursExtraBillingLabel(pending), '5 h · lisälaskutettavissa · ei lupaa');
+assert.equal(
+  hoursExtraBillingLabel(pending, { linkedQuoteRequest: true }),
+  '5 h · lisälaskutettavissa · ei lupaa',
+);
 assert.equal(hoursExtraBillingApproved(pending), false);
 assert.deepEqual(serializeDailyLogCustomerExtraBilling(pending), {
   hours_extra_billable: true,
@@ -51,7 +58,7 @@ const approved = buildCustomerExtraBillingFromLogForm({
   hours_extra_billing_allowed: true,
   hours_extra_hours: '5',
 });
-assert.equal(hoursExtraBillingLabel(approved), '5 h · Lisälaskutettava');
+assert.equal(hoursExtraBillingLabel(approved, { linkedQuoteRequest: true }), '5 h · Lisälaskutettava');
 assert.equal(
   hoursApprovedExtraBillingCustomerPrintLabel(approved),
   'Sovitusti laskutettu lisänä',

@@ -45,7 +45,12 @@ export function computeCustomerPriceFromPartnerCost(
   const clamped = Math.max(0, Math.min(margin, 99.99));
   const divisor = 1 - clamped / 100;
   if (divisor <= 0) return roundUrakkaMoney(partnerCost);
-  return roundUrakkaMoney(partnerCost / divisor);
+  const raw = partnerCost / divisor;
+  const rounded = roundUrakkaMoney(raw);
+  // Vältä 130,00 → 23,08 % → 130,01 -kierros: jos raaka on alle 0,005 päässä sentistä, käytä sitä.
+  const nearestCent = Math.round(raw * 100) / 100;
+  if (Math.abs(raw - nearestCent) < 0.005) return nearestCent;
+  return rounded;
 }
 
 export function inferPartnerExpenseMarginPercent(
@@ -54,7 +59,8 @@ export function inferPartnerExpenseMarginPercent(
   fallback: number = DEFAULT_PARTNER_EXPENSE_MARGIN_PERCENT,
 ): number {
   if (!(partnerCost > 0) || !(customerPrice > 0) || customerPrice < partnerCost) return fallback;
-  return roundUrakkaMoney((1 - partnerCost / customerPrice) * 100);
+  // 4 desimaalia: 100 € → 130 € ei pyöristy 23,08 % kautta 130,01 €:ksi.
+  return Math.round((1 - partnerCost / customerPrice) * 100 * 10000) / 10000;
 }
 
 /** Näytetäänkö rivi asiakkaan erillisillä laskuriveillä (ei kiinteän tarjouksen piikkiostot). */

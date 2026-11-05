@@ -862,6 +862,7 @@ function generateWorkReportPrintHtmlRaw(input: {
               !hoursWarrantyPrint && showInternalPrices && (showPartnerPrices || showCustomerPricesInPrint),
               !hoursWarrantyPrint && showCustomerPricesInPrint,
               false,
+              linkedQuoteRequest,
             );
       const hourSummary = hoursWarrantyPrint && hourSummaryBase ? `${hourSummaryBase} · Takuu` : hourSummaryBase;
       const quoteHourNote =
@@ -1558,6 +1559,7 @@ function formatHourEntryForPrint(
   showPrices: boolean,
   showCustomerMoney = showPrices,
   customerPrint = false,
+  linkedQuoteRequest = false,
 ) {
   const summary = formatHourEntry(log, { showMoney: showPrices, showCustomerMoney });
   if (customerPrint) {
@@ -1565,7 +1567,9 @@ function formatHourEntryForPrint(
     if (!customerExtraLabel) return summary;
     return `${summary} · ${customerExtraLabel}`;
   }
-  const hourExtraLabel = hoursExtraBillingLabel(log.customer_extra_billing);
+  const hourExtraLabel = hoursExtraBillingLabel(log.customer_extra_billing, {
+    linkedQuoteRequest,
+  });
   if (!hourExtraLabel) return summary;
   return `${summary} · ${hourExtraLabel}`;
 }

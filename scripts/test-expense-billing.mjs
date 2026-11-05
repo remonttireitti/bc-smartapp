@@ -60,3 +60,10 @@ assert.equal(expenseCustomerPriceMissing(extraBillableSupply), false);
 assert.equal(resolveExpenseCustomerUnitPrice(extraBillableSupply), 720.9);
 
 console.log('test-expense-billing: ok');
+
+// Päivystyslähtökorvaus 100 → 130 ei saa pyöristyä 130,01 €:ksi.
+const callOutMargin = inferPartnerExpenseMarginPercent(100, 130);
+assert.equal(computeCustomerPriceFromPartnerCost(100, callOutMargin), 130);
+assert.ok(callOutMargin > 23.07 && callOutMargin < 23.08);
+
+console.log('test-expense-billing: call-out 100/130 round-trip ok');

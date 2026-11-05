@@ -7,11 +7,13 @@ import {
   buildSupplyLineFlagsFromExpenseDrafts,
   computeSupplyCustomerUnitPrice,
   APPROVED_EXTRA_BILLING_CUSTOMER_PRINT_LABEL,
+  expenseQuoteLinkedExtraBillingApplies,
   resolveExpenseBillingMode,
   resolveExpensePurchaseUnitPrice,
   resolveLogExpenseExtraBillingFlags,
   resolveSupplyMarginPercent,
   resolveSupplyLineFlagForExpenseLine,
+  type ExpenseBillingQuoteContext,
   type SupplyLineExtraBillingFlag,
 } from './workReportExpenseBilling';
 
@@ -294,7 +296,10 @@ export function hoursApprovedExtraBillingCustomerPrintLabel(
 
 export function hoursExtraBillingLabel(
   billing: DailyLogCustomerExtraBilling | null | undefined,
+  context?: ExpenseBillingQuoteContext | null,
 ): string | null {
+  // Ilman linkitettyä tarjousta tunnit ovat normaalia laskutusta — ei "kuuluu tarjoukseen".
+  if (!expenseQuoteLinkedExtraBillingApplies(context)) return null;
   if (!hoursExtraBillable(billing)) return 'kuuluu tarjoukseen';
   const extraHours = resolveExtraBillableHours(billing);
   const hoursPart = extraHours > 0 ? `${extraHours} h · ` : '';
@@ -332,8 +337,9 @@ export function formatHoursExtraBillingMarginNote(
   partnerHourly: number,
   customerHourly: number,
   formatMoney: (value: number) => string,
+  context?: ExpenseBillingQuoteContext | null,
 ): string | null {
-  const label = hoursExtraBillingLabel(billing);
+  const label = hoursExtraBillingLabel(billing, context);
   const impact = hoursExtraBillingMarginImpact(billing, partnerHourly, customerHourly);
   if (!label || !impact) return label;
   if (hoursExtraBillingApproved(billing)) {
@@ -446,7 +452,7 @@ export function dailyLogQuoteExtrasSubtitle(form: DailyLogExtraBillingLogForm): 
   const billing = buildCustomerExtraBillingFromLogForm(form);
   if (!dailyLogCustomerExtraBillingHasData(billing)) return 'Ei lisälaskutusta';
   const parts: string[] = [];
-  const hourLabel = hoursExtraBillingLabel(billing);
+  const hourLabel = hoursExtraBillingLabel(billing, { linkedQuoteRequest: true });
   if (hourLabel && hoursExtraBillable(billing)) {
     const extraHours = resolveExtraBillableHours(billing);
     if (extraHours > 0) parts.push(`${extraHours} h · ${hourLabel}`);
