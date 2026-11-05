@@ -29,7 +29,7 @@ test('resolveWorkReportLogPeriod uses first and last log dates', () => {
 test('trip km minimum customer print description', () => {
   const text = formatTripKmCustomerPrintDescription(39.9, true);
   assert.match(text, /39,9 km/);
-  assert.match(text, /minimihuoltoautokorvauksen mukaan/i);
+  assert.match(text, /PK-seutu|minimihuoltoautokorvauksen mukaan/i);
 });
 
 test('trip km normal customer print description', () => {
@@ -41,11 +41,19 @@ test('trip km normal customer print description', () => {
 test('resolveTripKmCustomerPrintDescription from stored expense line', () => {
   const minimum = resolveTripKmCustomerPrintDescription({
     expense_type: 'km',
+    description: 'Ajomatkat (39.9 km, PK-seutu huoltoautoveloitus)',
+    qty: '1',
+  });
+  assert.ok(minimum);
+  assert.match(minimum, /PK-seutu/i);
+
+  const legacyMinimum = resolveTripKmCustomerPrintDescription({
+    expense_type: 'km',
     description: 'Ajomatkat (39.9 km, minimilaskutus huoltoautosta)',
     qty: '39.9',
   });
-  assert.ok(minimum);
-  assert.match(minimum, /minimihuoltoautokorvauksen mukaan/i);
+  assert.ok(legacyMinimum);
+  assert.match(legacyMinimum, /PK-seutu|minimihuoltoautokorvauksen mukaan/i);
 
   const normal = resolveTripKmCustomerPrintDescription({
     expense_type: 'km',
@@ -59,6 +67,10 @@ test('resolveTripKmCustomerPrintDescription from stored expense line', () => {
 test('tripKmExpenseUsesMinimumBilling detects stored description', () => {
   assert.equal(
     tripKmExpenseUsesMinimumBilling('Ajomatkat (39.9 km, minimilaskutus huoltoautosta)'),
+    true,
+  );
+  assert.equal(
+    tripKmExpenseUsesMinimumBilling('Ajomatkat (39.9 km, PK-seutu huoltoautoveloitus)'),
     true,
   );
   assert.equal(tripKmExpenseUsesMinimumBilling('Ajomatkat (86.4 km)'), false);

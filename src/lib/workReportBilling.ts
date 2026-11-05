@@ -852,7 +852,7 @@ export function isTripKmBillableLine(line: BillableLine): boolean {
   return line.kind === 'expense' && /^Ajomatkat\s*\(/i.test(line.description.trim());
 }
 
-/** Näytettävä rivisumma — km-kulut käyttävät aina 35 € minimiä. */
+/** Näytettävä rivisumma — km-kulut: PK-seutu flat (45/55) tai yli 50 km €/km. */
 export function billableLineDisplayTotal(line: BillableLine): number {
   if (!line.included) return 0;
   if (isTripKmBillableLine(line)) {
