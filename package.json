@@ -129,6 +129,7 @@
     "test:module-trials": "npx tsx scripts/test-module-trials.mjs",
     "test:free-access-price": "npx tsx scripts/test-free-access-price.mjs",
     "test:quote-trade-types": "npx tsx scripts/test-quote-trade-types.mjs",
+    "test:urakka-report-level": "npx tsx scripts/test-urakka-report-level.mjs",
     "test:urakka-zero-day-billing": "npx tsx scripts/test-urakka-zero-day-billing.mjs",
     "test:takuu-billing": "npx tsx scripts/test-takuu-billing.mjs",
     "test:refrigerant-partner-warehouse": "npx tsx scripts/test-refrigerant-partner-warehouse.mjs",

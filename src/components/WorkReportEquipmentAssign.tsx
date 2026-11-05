@@ -35,6 +35,17 @@ export default function WorkReportEquipmentAssign({
     onChange(selectedIds.filter((entry) => entry !== id));
   }
 
+  const allSelected = equipment.length > 0 && equipment.every((entry) => selectedSet.has(entry.id));
+
+  function toggleAll(next: boolean) {
+    if (!next) {
+      onChange([]);
+      return;
+    }
+    // Säilytä jo valittujen järjestys, lisää loput rekisterijärjestyksessä.
+    onChange([...selectedIds, ...equipment.map((entry) => entry.id).filter((id) => !selectedSet.has(id))]);
+  }
+
   function addFromPicker(id: string) {
     if (!id || selectedSet.has(id)) return;
     onChange([...selectedIds, id]);
@@ -49,6 +60,21 @@ export default function WorkReportEquipmentAssign({
 
       {equipment.length > 0 ? (
         <div className="work-report-equipment-assign-toggles" role="group" aria-label={label}>
+          {equipment.length > 1 ? (
+            <div className={`work-report-equipment-assign-row work-report-equipment-assign-all${allSelected ? ' is-selected' : ''}`}>
+              <label className="work-report-equipment-assign-name" htmlFor="work-report-equipment-all">
+                Valitse kaikki
+              </label>
+              <ToggleSwitch
+                id="work-report-equipment-all"
+                label="Valitse kaikki"
+                checked={allSelected}
+                disabled={interactionLocked}
+                onChange={toggleAll}
+                className="work-report-equipment-assign-switch"
+              />
+            </div>
+          ) : null}
           {equipment.map((entry) => {
             const checked = selectedSet.has(entry.id);
             const optionLabel = formatEquipmentOptionLabel(entry);

@@ -41,34 +41,74 @@ const checks = {};
 const body = async () => (await p.locator('body').innerText());
 checks['sivu latautui'] = (await body()).includes('Kylmälaitehuolto');
 checks['urakka-merkki ruudussa'] = (await p.locator('.work-report-entry-tile-marker', { hasText: 'urakka' }).count()) > 0;
-// 1) Tavallinen työkirjaus → Urakka-kytkin Takuun vieressä.
+// 1) Työkirjauksen ikkunassa EI Urakka/Takuu-kytkimiä eikä urakkahintaa (koko raportin asia).
 await p.locator('.work-report-entry-tile', { hasText: 'Kylmälaitehuolto' }).first().click(); await p.waitForTimeout(800);
-const dlg = p.locator('[role="dialog"], .leave-draft-overlay, .daily-log-dialog').last();
-const urakkaSw = p.getByRole('switch', { name: 'Urakka', exact: true });
-const takuuSw = p.getByRole('switch', { name: 'Takuu', exact: true });
-checks['Urakka-kytkin näkyy'] = (await urakkaSw.count()) === 1;
-checks['Takuu-kytkin näkyy'] = (await takuuSw.count()) >= 1;
+checks['kirjauksessa ei Urakka-kytkintä'] = (await p.getByRole('switch', { name: 'Urakka', exact: true }).count()) === 0;
+checks['kirjauksessa ei Takuu-kytkintä'] = (await p.getByRole('switch', { name: 'Takuu', exact: true }).count()) === 0;
+checks['kirjauksessa ei urakkahintaa'] = (await p.getByText('Urakkahinta (€', { exact: false }).count()) === 0;
 checks['ei pikatekstejä'] = !(await body()).includes('Hälytys kuitattu') && !(await body()).includes('Höyrystin sulatettu');
-const sameRow = await p.evaluate(() => { const u = [...document.querySelectorAll('button[role=switch]')].find((e) => e.parentElement?.textContent?.trim() === 'Urakka'); const t = [...document.querySelectorAll('button[role=switch]')].find((e) => e.parentElement?.textContent?.trim() === 'Takuu'); return !!u && !!t && u.parentElement.parentElement === t.parentElement.parentElement && u.parentElement.className === t.parentElement.className; });
-checks['Urakka ja Takuu samaa tyyliä vierekkäin'] = sameRow;
-checks['hinta piilossa ennen kytkintä'] = (await p.getByText('Urakkahinta (€, alv 0 %)').count()) === 0;
-await urakkaSw.click(); await p.waitForTimeout(400);
-const priceLabel = p.locator('label', { hasText: 'Urakkahinta (€, alv 0 %)' }).first();
-checks['Urakkahinta-kenttä näkyy'] = (await priceLabel.count()) > 0;
-const priceInput = priceLabel.locator('input');
-const hoursSw = p.getByRole('switch', { name: 'Laskutettava (tunnit)' });
-checks['tunnit: Laskutettava näkyy urakassa, oletus pois'] = (await hoursSw.count()) === 1 && (await hoursSw.getAttribute('aria-checked')) === 'false';
-await hoursSw.click(); await p.waitForTimeout(200);
-checks['tunnit: Laskutettava päälle'] = (await hoursSw.getAttribute('aria-checked')) === 'true';
-await priceInput.fill('3000');
-const box = await priceInput.evaluate((el) => ({ h: el.getBoundingClientRect().height, fs: getComputedStyle(el).fontSize }));
-console.log('box', JSON.stringify(box)); checks['kenttä 48 px / 16 px'] = Math.round(box.h) === 48 && box.fs === '16px';
-await p.getByRole('button', { name: 'Tallenna muutokset' }).click(); await p.waitForTimeout(1200);
-const patch1 = writes.find((w) => w.path === 'work_report_daily_logs' && w.method === 'PATCH');
-console.log('patch1', JSON.stringify(patch1?.body)?.slice(0, 400));
-checks['tallennus: fixed_price + hinta'] = patch1?.body?.entry_type === 'fixed_price' && Number(patch1?.body?.customer_fixed_price_amount) === 3000 && Number(patch1?.body?.fixed_price_amount) === 2700;
-checks['tallennus: hours_row_billed'] = patch1?.body?.partner_billing?.hours_row_billed === true;
-checks['tallennus: urakka_all_in'] = patch1?.body?.partner_billing?.urakka_all_in === true;
+const exSw = p.getByRole('switch', { name: 'Lisälaskutus (urakan päälle)' });
+const exSwLabel = p.locator('label', { hasText: 'Lisälaskutus (urakan päälle)' }).first();
+checks['kirjauksessa Lisälaskutus-kytkin urakkaraportissa'] = (await exSwLabel.count()) === 1;
+// Kytkimet eivät mene päällekkäin / leikkaannu.
+const rects = await p.evaluate(() => [...document.querySelectorAll('.daily-log-toggle-row .compact-option')].map((e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom, w: e.scrollWidth, cw: e.clientWidth, h: r.height }; }));
+let overlap = false; for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) { const A = rects[i], B = rects[j]; if (A.l < B.r && B.l < A.r && A.t < B.b && B.t < A.b) overlap = true; }
+checks['kytkimet eivät ole päällekkäin'] = !overlap && rects.every((r) => r.w <= r.cw + 1);
+checks['kytkinrivi 48 px'] = rects.every((r) => Math.round(r.h) >= 48);
+await p.getByRole('button', { name: 'Peruuta' }).click(); await p.waitForTimeout(400);
+
+// 2) Koko raportin Urakka ja takuu -ruutu.
+await p.locator('.work-report-section-tile', { hasText: 'Urakka ja takuu' }).first().click(); await p.waitForTimeout(600);
+const udlg = p.locator('.work-report-section-dialog');
+checks['Urakka ja takuu -ikkuna'] = (await udlg.count()) === 1;
+checks['Urakka päällä (raportissa urakkakirjaus)'] = (await udlg.getByRole('switch', { name: 'Urakka', exact: true }).getAttribute('aria-checked')) === 'true';
+checks['Takuu päällä (l3 on takuukirjaus)'] = (await udlg.getByRole('switch', { name: 'Takuu', exact: true }).getAttribute('aria-checked')) === 'true';
+const direct = udlg.locator('.urakka-report-field input').first();
+checks['suora kumppanihinta 2500'] = (await direct.inputValue()) === '2500';
+const fbox = await direct.evaluate((el) => ({ h: el.getBoundingClientRect().height, fs: getComputedStyle(el).fontSize }));
+checks['kenttä 48 px / 16 px'] = Math.round(fbox.h) === 48 && fbox.fs === '16px';
+// Käänteinen laskenta: asiakashinta 5000, 90 % kumppanilta.
+await udlg.getByRole('switch', { name: 'Laske asiakashinnasta' }).click(); await p.waitForTimeout(200);
+await udlg.locator('.urakka-report-field input').first().fill('5000');
+checks['90 % oletus'] = (await udlg.locator('.urakka-report-field input').nth(1).inputValue()) === '90';
+const billTxt = (await udlg.getByTestId('urakka-partner-bill').innerText()).replace(/\s/g, ' ');
+const keepTxt = (await udlg.getByTestId('urakka-partner-keeps').innerText()).replace(/\s/g, ' ');
+console.log('calc', billTxt, '|', keepTxt);
+checks['kumppanille 4 500,00 €'] = billTxt.includes('4500,00') || billTxt.includes('4 500,00');
+checks['jää kumppanille 500,00 €'] = keepTxt.includes('500,00');
+await udlg.locator('.urakka-report-field input').nth(1).fill('85'); await p.waitForTimeout(100);
+checks['85 % → 4 250'] = (await udlg.getByTestId('urakka-partner-bill').innerText()).includes('4250,00');
+await udlg.locator('.urakka-report-field input').nth(1).fill('90');
+writes.length = 0;
+await udlg.getByRole('button', { name: 'Tallenna' }).click(); await p.waitForTimeout(1200);
+const pr = writes.find((w) => w.path === 'work_report_daily_logs' && w.method === 'PATCH');
+console.log('price patch', JSON.stringify(pr?.body), pr?.url, 'writes', JSON.stringify(writes).slice(0,500), 'dlg', (await p.locator('.work-report-section-dialog').innerText().catch(() => 'none')).slice(0, 300), 'errs', errs.slice(0,3));
+checks['hinta tallentuu urakkakirjaukselle l2'] = pr?.url.includes('l2') && Number(pr?.body?.customer_fixed_price_amount) === 5000 && Number(pr?.body?.fixed_price_amount) === 4500 && Number(pr?.body?.partner_urakka_margin_percent) === 10;
+// Takuu koko raportille.
+await p.locator('.work-report-section-tile', { hasText: 'Urakka ja takuu' }).first().click(); await p.waitForTimeout(600);
+writes.length = 0;
+await p.locator('.work-report-section-dialog').getByRole('switch', { name: 'Takuu', exact: true }).click(); await p.waitForTimeout(1500);
+const wp = writes.filter((w) => w.path === 'work_report_daily_logs' && w.method === 'PATCH');
+console.log('warranty patches', wp.length, JSON.stringify(wp.map((w) => [w.url, w.body?.partner_billing])));
+checks['takuu pois: kaikki 3 kirjausta päivittyvät, lippu pois'] = wp.length === 3 && wp.every((w) => !w.body?.partner_billing?.warranty && !w.body?.partner_billing?.trips_warranty);
+const l3p = wp.find((w) => w.url.includes('l3'));
+checks['takuu pois: kulurivin takuu pois'] = l3p?.body?.customer_extra_billing?.supply_line_flags?.[0]?.warranty === undefined && Array.isArray(l3p?.body?.customer_extra_billing?.supply_line_flags);
+// Urakka pois → kaikki urakkakirjaukset tavallisiksi, hinta pois.
+writes.length = 0;
+await p.locator('.work-report-section-dialog').getByRole('switch', { name: 'Urakka', exact: true }).click(); await p.waitForTimeout(1200);
+const up = writes.filter((w) => w.path === 'work_report_daily_logs' && w.method === 'PATCH');
+checks['urakka pois: urakkakirjaus tavalliseksi, hinta tyhjä'] = up.length === 1 && up[0].body?.entry_type === 'regular' && up[0].body?.fixed_price_amount === null;
+await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+
+// 3) + Lisää laite toimii kuten + Lisää kulu.
+const addDev = p.getByRole('button', { name: '+ Lisää laite' });
+checks['+ Lisää laite -nappi'] = (await addDev.count()) === 1;
+checks['ei vanhaa + Laite -ruutua'] = (await p.locator('.work-report-entry-tile', { hasText: '+ Laite' }).count()) === 0;
+await addDev.click(); await p.waitForTimeout(800);
+checks['Lisää laite -ikkuna (päivä + laite)'] = (await p.getByText('Lisää laite', { exact: true }).count()) >= 1 && (await p.getByRole('button', { name: '+ Lisää laite' }).count()) >= 1;
+await p.getByRole('button', { name: 'Peruuta' }).click(); await p.waitForTimeout(400);
+checks['ei "Tilaaja myy laitteen" -nappia'] = !(await body()).includes('Tilaaja myy laitteen');
+
 // 2) Urakkakirjauksen kulurivit: Laskutettava oletuksena pois, päälle → tallentuu urakka_billed.
 writes.length = 0;
 await p.goto(`${BASE}/tyoraportit/${rid}`); await p.waitForTimeout(4000);
