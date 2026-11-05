@@ -31,7 +31,7 @@ import {
 } from '../lib/billingQuotePriceDraft';
 import { mergeActualPurchaseFromWorkReportLogs } from '../lib/quoteRequestActualPurchaseSync';
 import { compareQuoteCategories } from '../lib/quoteCategoryComparison';
-import { buildQuoteOutcomeSummary } from '../lib/quoteOutcomeSummary';
+import { buildQuoteOutcomeSummary, resolveOutcomeUrakka } from '../lib/quoteOutcomeSummary';
 import QuoteOutcomeSummaryView from './QuoteOutcomeSummaryView';
 import UnpricedQuoteRowsTable from './UnpricedQuoteRowsTable';
 import {
@@ -290,6 +290,10 @@ export default function WorkReportBillingQuotePanel({
     [dailyLogs, settings],
   );
   const provisionalCosts = useMemo(() => unpricedQuoteRowTotals(unpricedQuoteRows), [unpricedQuoteRows]);
+  const outcomeUrakka = useMemo(
+    () => resolveOutcomeUrakka(partnerCalculation, dailyLogs),
+    [partnerCalculation, dailyLogs],
+  );
   const outcomeSummary = useMemo(
     () =>
       buildQuoteOutcomeSummary({
@@ -308,8 +312,10 @@ export default function WorkReportBillingQuotePanel({
               }
             : undefined,
         provisionalCosts,
+        urakka: outcomeUrakka,
       }),
     [
+      outcomeUrakka,
       showPartnerMargin,
       partnerMargin,
       categoryComparison,
