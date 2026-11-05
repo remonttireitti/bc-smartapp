@@ -74,6 +74,7 @@
     "test:work-report-status-change": "npx tsx scripts/test-work-report-status-change.mjs",
     "test:expense-supply-extra-billing": "npx tsx scripts/test-expense-supply-extra-billing.mjs",
     "test:hours-extra-billing": "npx tsx scripts/test-hours-extra-billing.mjs",
+    "test:on-call-hours-billing": "npx tsx scripts/test-on-call-hours-billing.mjs",
     "test:manual-device-margin-sync": "npx tsx scripts/test-manual-device-margin-sync.mjs",
     "test:quote-purchase-margin-adjustment": "npx tsx scripts/test-quote-purchase-margin-adjustment.mjs",
     "test:work-report-actual-purchase": "npx tsx scripts/test-work-report-actual-purchase.mjs",
