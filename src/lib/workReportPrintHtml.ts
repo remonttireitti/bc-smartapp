@@ -1,3 +1,4 @@
+import { withInternalPrintFileNameSuffix } from './printDocumentShell';
 import { refrigerantCommissionAmount, refrigerantCustomerSaleNet } from './refrigerantPassThrough';
 import { logHoursWarranty } from './workReportWarranty';
 import { resolveUrakkaPartnerAmount } from './workReportUrakkaBilling';
@@ -201,17 +202,19 @@ export function getWorkReportPrintSummary(
 export function buildWorkReportPrintTitle(
   report: WorkReport,
   meta?: Pick<WorkReportPrintMeta, 'companyName'>,
+  options?: { printMode?: WorkReportPrintMode },
 ): string {
   const summary = getWorkReportPrintSummary(report, meta);
   const reportDate = report.completed_at ?? report.scheduled_start;
   const dateLabel = reportDate ? formatDate(reportDate) : new Date().toLocaleDateString('fi-FI');
   const headingLine = summary.headingText.replace(/\s+/g, ' ').trim() || 'Työraportti';
 
-  return [
+  const base = [
     sanitizePrintFileNamePart(summary.customerLabel, 50),
     sanitizePrintFileNamePart(headingLine, 70),
     sanitizePrintFileNamePart(dateLabel, 20),
   ].join(' — ');
+  return withInternalPrintFileNameSuffix(base, options?.printMode === 'internal');
 }
 
 function sanitizePrintFileNamePart(value: string, maxLength = 50): string {
@@ -959,7 +962,7 @@ function generateWorkReportPrintHtmlRaw(input: {
     report,
     meta,
   );
-  const printTitle = buildWorkReportPrintTitle(report, meta);
+  const printTitle = buildWorkReportPrintTitle(report, meta, { printMode });
   const printHeadline = buildWorkReportPrintHeadline(report);
   const displayPeople = resolveWorkReportDisplayPeople(report, { hideAssignee: hideAssignee });
 

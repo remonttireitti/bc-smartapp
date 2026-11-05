@@ -21,6 +21,17 @@ export function formatPrintSaveFileName(value: string, maxLength = 180): string 
   );
 }
 
+/**
+ * Asiakas- ja sisäinen tuloste: sama PDF-pohjanimi.
+ * Sisäinen lisää loppuun sanan "sisäinen" (ei tuplaa, jos se on jo).
+ */
+export function withInternalPrintFileNameSuffix(baseName: string, isInternal: boolean): string {
+  const base = formatPrintSaveFileName(baseName);
+  if (!isInternal) return base;
+  if (/(^|[\s-])sisäinen$/i.test(base) || /(^|[\s-])sisainen$/i.test(base)) return base;
+  return formatPrintSaveFileName(`${base} sisäinen`);
+}
+
 function decodeHtmlEntities(value: string): string {
   if (typeof document === 'undefined') return value;
   const el = document.createElement('textarea');

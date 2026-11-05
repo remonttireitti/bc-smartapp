@@ -13,7 +13,7 @@ import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 
 import { resolveCompanyLogoUrl } from '../lib/companyLogo';
 import { openPrintHtml } from '../lib/openPrintWindow';
-import { formatPrintSaveFileName } from '../lib/printDocumentShell';
+import { withInternalPrintFileNameSuffix } from '../lib/printDocumentShell';
 import { embedUrlAsDataUrl } from '../lib/quoteRequest/termatekAssets';
 
 import { quoteListTrail, withNavTrail } from '../lib/navigationTrail';
@@ -469,8 +469,9 @@ export default function QuoteRequestPrintPage({ session }: Props) {
       setError('Tuloste ei ole vielä valmis. Odota hetki ja yritä uudelleen.');
       return;
     }
-    const documentTitle = formatPrintSaveFileName(
+    const documentTitle = withInternalPrintFileNameSuffix(
       `Tarjous – ${customer?.name ?? title}`.trim() || 'Tarjous',
+      printMode === 'creator',
     );
     openPrintHtml(printHtml, { documentTitle });
   }
