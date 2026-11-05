@@ -116,7 +116,7 @@ jobs:
               echo "::error::${fn}: verify_jwt puuttuu supabase/config.toml:sta — lisää [functions.${fn}] ennen julkaisua."
               exit 1
             fi
-            flags="--project-ref ${SUPABASE_PROJECT_REF} --use-api"
+            flags="--project-ref ${SUPABASE_PROJECT_REF} --use-api --yes"
             if [ "${verify}" = "false" ]; then flags="${flags} --no-verify-jwt"; fi
             echo "::group::${fn} (verify_jwt=${verify})"
             supabase functions deploy "${fn}" ${flags}
