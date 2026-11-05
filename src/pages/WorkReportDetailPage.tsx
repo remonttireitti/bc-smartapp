@@ -206,6 +206,7 @@ import {
 import { expenseTypeCategory } from '../lib/workReportEntryCategories';
 import {
   markQuoteRowsSeeded,
+  seededRowBillingMode,
   syncQuoteRowsToWorkReport,
 } from '../lib/quoteSeededRows';
 import type { QuoteSeededRow } from '../lib/workReportBillingQuote';
@@ -2966,7 +2967,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     }
   }
 
-  /** Tarjouksen tarvike-/kulurivi työkirjauksen kuluriviksi: 0 €, kuuluu urakkaan. */
+  /** Tarjouksen tarvike-/kulurivi työkirjauksen kuluriviksi: 0 €, kuuluu urakkaan (majoitus: laskutetaan kumppanilta). */
   function quoteRowDraft(row: QuoteSeededRow): ExpenseDraft {
     return applyExpenseBillingMode(
       {
@@ -2976,7 +2977,7 @@ export default function WorkReportDetailPage({ session }: Props) {
         qty: String(row.qty),
         unit_price: '0',
       },
-      'included_in_contract',
+      seededRowBillingMode(row),
     );
   }
 
