@@ -27,7 +27,7 @@ import {
 
 /** Asiakas = vain työn kuvaus ilman hintoja. Sisäinen = kumppani- ja asiakaslaskutus mukana. */
 export type WorkReportPrintMode = 'customer' | 'internal';
-import { formatEuro } from './workReportBilling';
+import { formatEuro, includeUrakkaExpenseLines } from './workReportBilling';
 import { BILLABLE_RATES_SOURCE_LABELS } from './management';
 import {
   collectExtraBillingMarginImpactLines,
@@ -52,7 +52,7 @@ import {
   compareQuoteCategories,
   renderQuoteCategoryComparisonHtml,
 } from './quoteCategoryComparison';
-import { buildQuoteOutcomeSummary, renderQuoteOutcomeSummaryHtml } from './quoteOutcomeSummary';
+import { buildQuoteOutcomeSummary, renderQuoteOutcomeSummaryHtml, resolveOutcomeUrakka } from './quoteOutcomeSummary';
 import { resolveDeviceSellerSaleNet } from './workReportDeviceSeller';
 import { purchaseLinesForDisplay } from './workReportDeviceEntries';
 import { collectUnpricedQuoteRows, unpricedQuoteRowTotals } from './quoteSeededRows';
@@ -454,11 +454,13 @@ function quoteMarginPrintSection(
   if (!billingQuoteHasData(billingQuote)) return '';
   const deviceSellerSaleNet = resolveDeviceSellerSaleNet(billingQuote);
 
+  const outcomeUrakka = resolveOutcomeUrakka(partnerCalculation, logs, billingQuote.notional_hourly_rate);
   const categoryComparison =
     quoteData && partnerCalculation
       ? compareQuoteCategories({
           quoteData,
-          partnerCalculation,
+          // Urakassa urakoitsijan omat kulut (ajot, majoitus…) luetaan mukaan (sama kuin paneelissa).
+          partnerCalculation: outcomeUrakka ? includeUrakkaExpenseLines(partnerCalculation) : partnerCalculation,
           logs,
           partnerRates: partnerCalculation.ratesUsed,
           tripKmRate,
@@ -514,6 +516,7 @@ function quoteMarginPrintSection(
     provisionalCosts: billingQuote.quote_request_id
       ? unpricedQuoteRowTotals(collectUnpricedQuoteRows(logs, billingQuote))
       : null,
+    urakka: outcomeUrakka,
   });
 
   const rows: string[] = [];

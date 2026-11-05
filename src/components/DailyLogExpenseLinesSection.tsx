@@ -72,6 +72,23 @@ type Props = {
   rowBillMode?: 'urakka' | 'warranty' | null;
 };
 
+/**
+ * Urakassa tarjouksen tarvike/kulu, joka kuuluu urakkaan (suora kulu), on jo asiakashinnassa eikä sitä
+ * laskuteta erikseen kenellekään → ei "Laskutettava"-kytkintä (paitsi jos se on jo merkitty laskutettavaksi).
+ */
+function hideUrakkaBilledToggle(
+  row: Parameters<typeof resolveExpenseBillingMode>[0] & { urakka_billed?: boolean },
+  rowBillMode: 'urakka' | 'warranty' | null,
+  linkedQuoteRequest: boolean,
+): boolean {
+  return (
+    rowBillMode === 'urakka'
+    && linkedQuoteRequest
+    && row.urakka_billed !== true
+    && resolveExpenseBillingMode(row) === 'included_in_contract'
+  );
+}
+
 export default function DailyLogExpenseLinesSection({
   expenseDrafts,
   setExpenseDrafts,
@@ -188,7 +205,7 @@ export default function DailyLogExpenseLinesSection({
                 </span>
                 <span className="expense-line-list-item-action">Muokkaa</span>
               </button>
-              {rowBillMode ? (
+              {hideUrakkaBilledToggle(row, rowBillMode, linkedQuoteRequest) ? null : rowBillMode ? (
                 <label
                   className="expense-line-billed-toggle expense-line-row-bill-toggle"
                   title={rowBillMode === 'urakka' ? 'Laskutetaan urakan päälle (Lisälaskutus)' : 'Takuun ulkopuolinen: laskutetaan'}
@@ -389,7 +406,7 @@ function ExpenseLineEditor({
           onChange={(e) => updateExpenseRow({ ...row, qty: e.target.value })}
         />
       </label>
-      {!autoTripKm && rowBillMode ? (
+      {hideUrakkaBilledToggle(row, rowBillMode, expenseQuoteContext.linkedQuoteRequest === true) ? null : !autoTripKm && rowBillMode ? (
         <label className="checkbox-label expense-warranty-toggle">
           <CheckToggle
             checked={rowBillMode === 'urakka' ? row.urakka_billed === true : row.warranty !== true}

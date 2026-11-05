@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import {
   buildAccountingStatement,
+  DEDUCTION_LINE_KEYS,
   formatSignedEuro,
   type AccountingLine,
   type OutcomeTone,
@@ -69,7 +70,7 @@ export default function QuoteOutcomeSummaryView({
           ) : null}
         </td>
         <td className="num">{money(line.estimateNet)}</td>
-        <td className="num">{line.key === 'commission' ? `− ${formatEuro(Math.abs(line.actualNet))}` : line.kind === 'result' ? <strong>{formatEuro(line.actualNet)}</strong> : formatEuro(line.actualNet)}</td>
+        <td className="num">{DEDUCTION_LINE_KEYS.has(line.key) ? `− ${formatEuro(Math.abs(line.actualNet))}` : line.kind === 'result' ? <strong>{formatEuro(line.actualNet)}</strong> : formatEuro(line.actualNet)}</td>
         <VarianceCell value={line.varianceNet} tone={line.tone} />
       </tr>
     );
@@ -133,7 +134,7 @@ export default function QuoteOutcomeSummaryView({
             {statement.costs.map(lineRow)}
             {statement.result ? (
               <>
-                {section('Kate')}
+                {section(statement.resultTitle ?? 'Kate')}
                 {statement.result.map(lineRow)}
               </>
             ) : null}

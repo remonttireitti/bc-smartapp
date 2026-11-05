@@ -121,7 +121,23 @@ export type QuoteOutcomeSummary = {
    * Urakkaraportti urakoitsijan näkökulmasta: tulo = kumppanilta laskutettu urakkahinta,
    * kumppanille jää loput asiakashinnasta. null = ei urakkaa (tai lisälaskutus/laitemyyjä-ketju).
    */
-  urakka: { partnerBillNet: number; partnerKeepsNet: number; partnerKeepsPercent: number | null } | null;
+  urakka: {
+    partnerBillNet: number;
+    partnerKeepsNet: number;
+    partnerKeepsPercent: number | null;
+    /** Toteutuneet työtunnit (päiväkirja). */
+    hours: number;
+    /** Työn palkka = laskutettu − omat kulut. */
+    wageNet: number;
+    /** Palkka / tunti (null, kun tunteja ei ole). */
+    hourlyNet: number | null;
+    /** Kuvitteellinen kumppanin tuntihinta (€/h) tai null. */
+    notionalRate: number | null;
+    /** Työn osuus = tunnit × kuvitteellinen tuntihinta (null, kun hintaa ei ole). */
+    laborShareNet: number | null;
+    /** Myynnin tuotto = palkka − työn osuus (null, kun hintaa ei ole). */
+    saleProfitNet: number | null;
+  } | null;
 };
 
 /** Kate-ero poikkeaa kulujen eron vastaluvusta (esim. hyväksytyt lisät) → näytä se taulukossa. */
@@ -167,7 +183,21 @@ export type OutcomeUrakka = {
   partnerNet: number;
   /** Kumppanille jäävä osuus asiakashinnasta (%), kun urakka on laskettu asiakashinnasta. */
   partnerKeepsPercent: number | null;
+  /** Toteutuneet työtunnit päiväkirjasta. */
+  hours: number;
+  /** Kuvitteellinen kumppanin tuntihinta (€/h) tai null. */
+  notionalRate: number | null;
 };
+
+/** Päiväkirjan toteutuneet työtunnit (myös urakkamerkinnät: normaali + ylityö + päivystys). */
+export function sumReportHours(logs: UrakkaReportLog[]): number {
+  const total = (logs as Array<{ hours_regular?: unknown; hours_overtime?: unknown; hours_on_call?: unknown }>).reduce(
+    (sum, log) =>
+      sum + (Number(log.hours_regular) || 0) + (Number(log.hours_overtime) || 0) + (Number(log.hours_on_call) || 0),
+    0,
+  );
+  return Math.round(total * 100) / 100;
+}
 
 /**
  * Urakkahinta kumppanin laskulta + raportin urakkakirjauksista. null, kun urakkaa ei ole tai
@@ -176,6 +206,7 @@ export type OutcomeUrakka = {
 export function resolveOutcomeUrakka(
   calculation: { byUser: Array<{ lines: Array<{ kind: string; included: boolean; total: number; warranty?: boolean }> }> } | null | undefined,
   logs: UrakkaReportLog[],
+  notionalHourlyRate?: number | null,
 ): OutcomeUrakka | null {
   if (!calculation) return null;
   let partnerNet = 0;
@@ -191,6 +222,8 @@ export function resolveOutcomeUrakka(
     partnerNet,
     partnerKeepsPercent:
       urakka.mode === 'from_customer' ? roundMoney(100 - urakka.partnerPercent) : null,
+    hours: sumReportHours(logs),
+    notionalRate: notionalHourlyRate != null && notionalHourlyRate > 0 ? roundMoney(notionalHourlyRate) : null,
   };
 }
 
@@ -468,13 +501,26 @@ export function buildQuoteOutcomeSummary(input: {
     parties,
     urakka:
       urakkaIncomeNet != null
-        ? {
-            partnerBillNet: urakkaIncomeNet,
-            partnerKeepsNet: roundMoney(quoteSaleNet - urakkaIncomeNet),
-            partnerKeepsPercent:
-              input.urakka?.partnerKeepsPercent
-              ?? (quoteSaleNet > EPS ? roundMoney(((quoteSaleNet - urakkaIncomeNet) / quoteSaleNet) * 100) : null),
-          }
+        ? (() => {
+            const wageNet = roundMoney(grossMargin?.actualNet ?? 0);
+            const hours = input.urakka?.hours ?? 0;
+            const notionalRate = input.urakka?.notionalRate ?? null;
+            const laborShareNet =
+              notionalRate != null && hours > EPS ? roundMoney(hours * notionalRate) : null;
+            return {
+              partnerBillNet: urakkaIncomeNet,
+              partnerKeepsNet: roundMoney(quoteSaleNet - urakkaIncomeNet),
+              partnerKeepsPercent:
+                input.urakka?.partnerKeepsPercent
+                ?? (quoteSaleNet > EPS ? roundMoney(((quoteSaleNet - urakkaIncomeNet) / quoteSaleNet) * 100) : null),
+              hours,
+              wageNet,
+              hourlyNet: hours > EPS ? roundMoney(wageNet / hours) : null,
+              notionalRate,
+              laborShareNet,
+              saleProfitNet: laborShareNet != null ? roundMoney(wageNet - laborShareNet) : null,
+            };
+          })()
         : null,
   };
 }
@@ -507,7 +553,7 @@ export function renderQuoteOutcomeSummaryHtml(
     const sub = line.sub ? `<div class="muted" style="font-size:11px">${esc(line.sub)}</div>` : '';
     const label = strong ? `<strong>${esc(line.label)}</strong>` : esc(line.label);
     const cell = (value: string) => (strong ? `<strong>${value}</strong>` : value);
-    const actual = line.key === 'commission' ? esc(`− ${euro(Math.abs(line.actualNet))}`) : line.key === 'net' ? `<strong style="font-size:15px">${esc(euro(line.actualNet))}</strong>` : cell(esc(euro(line.actualNet)));
+    const actual = DEDUCTION_LINE_KEYS.has(line.key) ? esc(`− ${euro(Math.abs(line.actualNet))}`) : line.key === 'net' ? `<strong style="font-size:15px">${esc(euro(line.actualNet))}</strong>` : cell(esc(euro(line.actualNet)));
     const style = line.kind === 'total' ? ' style="border-top:1px solid #94a3b8"' : '';
     return `<tr${line.kind === 'result' ? ' class="profit-row"' : ''}${style}><td>${label}${sub}</td><td class="num">${cell(esc(money(line.estimateNet)))}</td><td class="num">${actual}</td>${variance(line.varianceNet, line.tone)}</tr>`;
   };
@@ -539,11 +585,59 @@ export function renderQuoteOutcomeSummaryHtml(
       <tbody>
         ${statement.income ? `${section('Tulot')}${statement.income.map(lineHtml).join('')}` : ''}
         ${section('Kulut')}${statement.costs.map(lineHtml).join('')}
-        ${statement.result ? `${section('Kate')}${statement.result.map(lineHtml).join('')}` : ''}
+        ${statement.result ? `${section(statement.resultTitle ?? 'Kate')}${statement.result.map(lineHtml).join('')}` : ''}
         ${summary.parties ? `${section('Laskutuslaskelma')}${partyRows}` : ''}
       </tbody>
     </table>
   </div>`;
+}
+
+const fiNumber = (value: number) => value.toLocaleString('fi-FI', { maximumFractionDigits: 2 });
+const fiEuro = (value: number) => `${value.toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+
+/** Avaimet, joiden toteutunut summa näytetään vähennyksenä ("− 1 250,00 €"). */
+export const DEDUCTION_LINE_KEYS = new Set(['commission', 'labor_share']);
+
+/**
+ * Urakan tulos urakoitsijan näkökulmasta: laskutettu − omat kulut = työn palkka (+ €/h).
+ * Kuvitteellisella kumppanin tuntihinnalla palkasta vähennetään työn osuus (h × €/h) ja loput on
+ * myynnin tuottoa.
+ */
+function urakkaResultLines(
+  u: NonNullable<QuoteOutcomeSummary['urakka']>,
+  gross: QuoteOutcomeComparison,
+  showMarginVariance: boolean,
+  line: (
+    key: string,
+    label: string,
+    estimate: number | null,
+    actual: number,
+    tone: (e: number | null, a: number) => OutcomeTone,
+    kind?: AccountingLine['kind'],
+    sub?: string | null,
+  ) => AccountingLine,
+): AccountingLine[] {
+  const hourly = u.hourlyNet != null ? ` · ${fiEuro(u.hourlyNet)}/h (${fiNumber(u.hours)} h)` : '';
+  const wage: AccountingLine = {
+    key: 'gross',
+    label: 'Työn palkka',
+    sub: `laskutettu − omat kulut${hourly}`,
+    kind: 'result',
+    ...gross,
+    ...(showMarginVariance ? {} : { varianceNet: null }),
+  };
+  if (u.laborShareNet == null || u.saleProfitNet == null || u.notionalRate == null) return [wage];
+  return [
+    wage,
+    {
+      ...line('labor_share', 'Työn osuus', null, -u.laborShareNet, marginVarianceTone, 'line', `${fiNumber(u.hours)} h × ${fiEuro(u.notionalRate)}/h`),
+      varianceNet: null,
+    },
+    {
+      ...line('sale_profit', 'Myynnin tuotto', null, u.saleProfitNet, marginVarianceTone, 'result', 'palkka − työn osuus'),
+      varianceNet: null,
+    },
+  ];
 }
 
 /** Tuloslaskelman rivi (TULOT / KULUT / KATE). */
@@ -560,6 +654,8 @@ export type AccountingStatement = {
   costs: AccountingLine[];
   /** Kate, provisio, puhdas kate (null: ei katetta tai laskutuslaskelma). */
   result: AccountingLine[] | null;
+  /** Tulososion otsikko (oletus "Kate"; urakassa "Tulos"). */
+  resultTitle?: string;
 };
 
 /**
@@ -641,16 +737,8 @@ export function buildAccountingStatement(summary: QuoteOutcomeSummary): Accounti
         { ...line('income_total', 'Laskutettu kumppanilta', u.partnerBillNet, u.partnerBillNet, marginVarianceTone, 'total', 'urakkahinta'), varianceNet: null },
       ],
       costs,
-      result: [
-        {
-          key: 'gross',
-          label: 'Puhdas kate',
-          sub: 'laskutettu − omat kulut · palkka tulee lisäksi',
-          kind: 'result',
-          ...gross,
-          ...(summary.showMarginVariance ? {} : { varianceNet: null }),
-        },
-      ],
+      resultTitle: 'Tulos',
+      result: urakkaResultLines(u, gross, summary.showMarginVariance, line),
     };
   }
   const income: AccountingLine[] = [

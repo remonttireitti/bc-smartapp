@@ -241,7 +241,10 @@ export function expenseRowSectionTitle(
     showPartner,
     showCustomer,
   });
-  if (billingLabel) parts.push(billingLabel);
+  // Sama teksti ei saa toistua (esim. "kuuluu urakkaan · suora kulu" sekä tarvike- että laskutusmerkinnässä).
+  if (billingLabel && !parts.some((part) => part === billingLabel || part.startsWith(`${billingLabel} · `))) {
+    parts.push(billingLabel);
+  }
   if (
     (showPartner || showCustomer)
     && row.expense_type

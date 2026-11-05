@@ -6,6 +6,7 @@ import {
   normalizeBillingQuoteSettings,
   parseBillingQuoteSettings,
   saveBillingQuoteDeviceSeller,
+  saveNotionalHourlyRate,
   saveContractorInvoiceStatus,
   saveBillingQuotePrices,
   quoteHasVat,
@@ -292,9 +293,39 @@ export default function WorkReportBillingQuotePanel({
   );
   const provisionalCosts = useMemo(() => unpricedQuoteRowTotals(unpricedQuoteRows), [unpricedQuoteRows]);
   const outcomeUrakka = useMemo(
-    () => resolveOutcomeUrakka(partnerCalculation, dailyLogs),
-    [partnerCalculation, dailyLogs],
+    () => resolveOutcomeUrakka(partnerCalculation, dailyLogs, settings.notional_hourly_rate),
+    [partnerCalculation, dailyLogs, settings.notional_hourly_rate],
   );
+  const [rateDraft, setRateDraft] = useState<string | null>(null);
+  const [rateBusy, setRateBusy] = useState(false);
+  const [rateError, setRateError] = useState<string | null>(null);
+  const savedRateText = settings.notional_hourly_rate != null ? formatMoneyInput(settings.notional_hourly_rate) : '';
+
+  async function saveRate() {
+    if (rateBusy || rateDraft == null) return;
+    const text = rateDraft.trim();
+    if (text === savedRateText) {
+      setRateDraft(null);
+      return;
+    }
+    const rate = text ? parseMoney(text) : null;
+    if (text && (rate == null || rate <= 0)) {
+      setRateError('Tarkista tuntihinta.');
+      return;
+    }
+    setRateBusy(true);
+    setRateError(null);
+    try {
+      const next = await saveNotionalHourlyRate(supabase, workReportId, rate);
+      setSettings((prev) => ({ ...prev, notional_hourly_rate: next.notional_hourly_rate ?? null }));
+      setRateDraft(null);
+      await onSaved?.(next);
+    } catch (err) {
+      setRateError(err instanceof Error ? err.message : 'Tallennus epäonnistui');
+    } finally {
+      setRateBusy(false);
+    }
+  }
   // Urakkaraportissa urakoitsijan omat kulut (ajot, majoitus…) luetaan mukaan, vaikka ne kuuluvat urakkaan.
   const outcomeComparison = useMemo(
     () =>
@@ -858,6 +889,32 @@ export default function WorkReportBillingQuotePanel({
               Asiakkaalta laskutettava yhteensä{' '}
               <strong>{formatEuro(customerBillableGrandTotal.grandTotal)}</strong>
             </p>
+          ) : null}
+
+          {outcomeSummary?.urakka && !readOnly ? (
+            <label className="form-field billing-notional-rate">
+              <span>Kumppanin tuntihinta (€/h)</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={rateDraft ?? savedRateText}
+                placeholder={
+                  partnerCalculation?.ratesUsed?.hourly_regular
+                    ? `esim. ${formatMoneyInput(partnerCalculation.ratesUsed.hourly_regular)}`
+                    : 'esim. 50'
+                }
+                disabled={rateBusy}
+                onChange={(e) => {
+                  setRateDraft(e.target.value);
+                  setRateError(null);
+                }}
+                onBlur={() => void saveRate()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+                }}
+              />
+              {rateError ? <span className="error" role="alert">{rateError}</span> : null}
+            </label>
           ) : null}
 
           {renderDeviceSellerEditor()}

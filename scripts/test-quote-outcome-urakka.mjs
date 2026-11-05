@@ -24,7 +24,7 @@ const logs = [
  {...base,id:'d',log_date:'2026-11-05',created_at:'2026-11-05T14:48:07Z',hours_regular:5,trip_legs:[{distance_km:406.9}],expense_lines:[kmx(406.9)]},
 ];
 import assert from 'node:assert/strict';
-const build = (bill, kmQty = null) => {
+const build = (bill, kmQty = null, rate = null) => {
   const ls = logs.map((l) => ({ ...l, expense_lines: l.expense_lines.map((e) => {
     const x = kmQty && e.expense_type === 'km' ? { ...e, qty: kmQty } : e;
     return bill && (x.expense_type === 'km' || x.description === 'Majoitus') ? { ...x, urakka_billed: true } : x;
@@ -36,15 +36,18 @@ const build = (bill, kmQty = null) => {
   const pm = computePartnerNetMargin(settings, calc.grandTotal, { logs: ls, partnerRates: calc.ratesUsed, partnerCalculation: calc, quoteData });
   const cmp = compareQuoteCategories({ quoteData, partnerCalculation: includeUrakkaExpenseLines(calc), logs: ls, partnerRates: calc.ratesUsed, tripKmRate: 0.53, billingSettings: settings });
   const input = { partnerMargin: pm, comparison: cmp, quoteSaleNet: 6560, formatEuro };
-  return { calc, ls, input, withUrakka: buildQuoteOutcomeSummary({ ...input, urakka: resolveOutcomeUrakka(calc, ls) }), without: buildQuoteOutcomeSummary(input) };
+  return { calc, ls, input, withUrakka: buildQuoteOutcomeSummary({ ...input, urakka: resolveOutcomeUrakka(calc, ls, rate) }), without: buildQuoteOutcomeSummary(input) };
 };
 
 // Wärtsilä: urakka 90 % × 6560 = 5904 laskutettu kumppanilta, km/majoitus Ennin omia kuluja, tarvikkeita ei tarvittu.
 const a = build(false);
 assert.equal(a.without.verdict.amountNet, -1004, 'vanha laskenta: 5904 − 4900 = −1004 (virhe)');
-assert.deepEqual(resolveOutcomeUrakka(a.calc, a.ls), { partnerNet: 5904, partnerKeepsPercent: 10 });
+assert.deepEqual(resolveOutcomeUrakka(a.calc, a.ls), { partnerNet: 5904, partnerKeepsPercent: 10, hours: 25, notionalRate: null });
 const s = a.withUrakka;
-assert.deepEqual(s.urakka, { partnerBillNet: 5904, partnerKeepsNet: 656, partnerKeepsPercent: 10 });
+assert.deepEqual(s.urakka, {
+  partnerBillNet: 5904, partnerKeepsNet: 656, partnerKeepsPercent: 10,
+  hours: 25, wageNet: 4890.32, hourlyNet: 195.61, notionalRate: null, laborShareNet: null, saleProfitNet: null,
+});
 // Omat kulut: arvio tarvikkeet 750 + ajot 800 + majoitus 500 + huoltoauto 350 = 2400 (työ = palkka, ei kulu); toteutunut 733,68 + 280.
 assert.equal(s.costs.estimateNet, 2400);
 assert.equal(s.costs.actualNet, 1013.68);
@@ -61,8 +64,30 @@ assert.equal(st.income[2].actualNet, 5904);
 assert.deepEqual(st.costs.map((l) => l.label), ['Tarvikkeet', 'Ajokilometrit', 'Majoitus', 'Huoltoautokorvaus', 'Kulut yhteensä']);
 assert.deepEqual(st.costs.find((l) => l.label === 'Tarvikkeet').actualNet, 0, 'käyttämättömät tarvikkeet 0 €, ei huonompi');
 assert.ok(!st.costs.some((l) => /kumppanilta/.test(l.sub ?? '')), 'urakassa kulut ovat omia, ei kumppanilaskuselitettä');
-assert.deepEqual(st.result.map((l) => l.label), ['Puhdas kate']);
+assert.deepEqual(st.result.map((l) => l.label), ['Työn palkka'], 'ilman kuvitteellista tuntihintaa vain palkka');
+assert.equal(st.resultTitle, 'Tulos');
+assert.ok(!st.result.some((l) => /puhdas kate/i.test(l.label)), 'ei "puhdas kate" urakassa');
+assert.equal(st.result[0].actualNet, 4890.32);
+assert.match(st.result[0].sub, /laskutettu − omat kulut · 195,61 €\/h \(25 h\)/);
+assert.ok(!/palkka tulee lisäksi/.test(st.result[0].sub));
 assert.ok(!st.costs.some((l) => l.label === 'Muut kate-erät' || l.label === 'Työt'));
+
+// Kuvitteellinen kumppanin tuntihinta 50 €/h: työn osuus 25 h × 50 = 1 250, myynnin tuotto 3 640,32.
+const r50 = build(false, null, 50);
+assert.equal(r50.withUrakka.verdict.amountNet, 1386.32, 'banneri ei muutu tuntihinnasta');
+assert.equal(r50.withUrakka.urakka.laborShareNet, 1250);
+assert.equal(r50.withUrakka.urakka.saleProfitNet, 3640.32);
+const st50 = buildAccountingStatement(r50.withUrakka);
+assert.deepEqual(st50.result.map((l) => l.label), ['Työn palkka', 'Työn osuus', 'Myynnin tuotto']);
+assert.deepEqual(st50.result.map((l) => l.actualNet), [4890.32, -1250, 3640.32]);
+assert.equal(st50.result[1].sub, '25 h × 50,00 €/h');
+// Ilman tunteja ei jaeta nollalla eikä tuntihintaa näytetä.
+const noHours = buildQuoteOutcomeSummary({ ...a.input, urakka: { ...resolveOutcomeUrakka(a.calc, a.ls, 50), hours: 0 } });
+assert.equal(noHours.urakka.hourlyNet, null);
+assert.equal(noHours.urakka.laborShareNet, null);
+assert.deepEqual(buildAccountingStatement(noHours).result.map((l) => l.label), ['Työn palkka']);
+// Virheellinen / nolla tuntihinta ohitetaan.
+assert.equal(resolveOutcomeUrakka(a.calc, a.ls, 0).notionalRate, null);
 
 // Kulut yli tarjouksen (km 2000 × 2) → huonommin.
 const over = build(false, 2000);
@@ -75,3 +100,9 @@ assert.equal(plain.verdict.amountNet, -1004);
 assert.equal(plain.urakka, null);
 assert.equal(resolveOutcomeUrakka(null, []), null);
 console.log('quote-outcome-urakka: ok');
+// Tuntihinta säilyy billing_quote-JSONissa (parse) ja virheellinen ohitetaan.
+import { parseBillingQuoteSettings as _parse } from '../src/lib/workReportBillingQuote.ts';
+assert.equal(_parse({ notional_hourly_rate: 50 }).notional_hourly_rate, 50);
+assert.equal(_parse({ notional_hourly_rate: 0 }).notional_hourly_rate, undefined);
+assert.equal(_parse({ notional_hourly_rate: 'x' }).notional_hourly_rate, undefined);
+console.log('notional-rate parse: ok');
