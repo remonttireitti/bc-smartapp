@@ -31,7 +31,7 @@ const res = await p.evaluate(async () => {
   const km = (d) => ({ expense_type: 'km', description: `Ajomatkat (${d} km)`, qty: d, unit_price: 0.9, customer_unit_price: 1, bill_to_partner: true, bill_to_customer: true });
   const logs = [
     mk('l1', '2026-11-01', 5, [{ distance_km: 408.3 }], [km(408.3)]),
-    mk('l2', '2026-11-03', 10, [], [{ expense_type: 'material', description: 'Huoltotarvikkeet', qty: 30, unit_price: 0, bill_to_partner: false, bill_to_customer: false }, { expense_type: 'other', description: 'Majoitus', qty: 5, unit_price: 56, bill_to_partner: false, bill_to_customer: false }]),
+    mk('l2', '2026-11-03', 10, [], [{ expense_type: 'material', description: 'Huoltotarvikkeet', qty: 30, unit_price: 0, bill_to_partner: false, bill_to_customer: false }, { expense_type: 'other', description: 'Majoitus', qty: 5, unit_price: 56, bill_to_partner: true, bill_to_customer: true }]),
     mk('l3', '2026-11-04', 5, [], []),
     mk('l4', '2026-11-05', 5, [{ distance_km: 406.9 }], [km(406.9)]),
   ];
@@ -52,8 +52,8 @@ const flat = res.rows.map((r) => r.join(' | '));
 console.log(flat.join('\n'));
 const find = (re) => flat.find((l) => re.test(l)) ?? '';
 check(!flat.some((l) => /1\s?600\s?km/.test(l)), 'ei "1 600 km" (km ei tuplaannu)');
-check(/Ajokilometrit.*800 km \/ 815,2 km.*800,00.*733,68/.test(find(/^Ajokilometrit/)), 'Ajokilometrit: 800 km / 815,2 km · 800,00 € · 733,68 €');
-check(/^Majoitus.*oma kulu · ei laskuteta kumppanilta.*500,00.*280,00/.test(find(/^Majoitus/)), 'Majoitus omana rivinään: 500,00 € / 280,00 € + laskutustila');
+check(/Ajokilometrit.*800 km \/ 815,2 km · oma kulu · laskutetaan kumppanilta.*800,00.*733,68/.test(find(/^Ajokilometrit/)), 'Ajokilometrit: km-korvaus laskutetaan kumppanilta');
+check(/^Majoitus.*oma kulu · laskutetaan kumppanilta.*500,00.*280,00/.test(find(/^Majoitus/)), 'Majoitus omana rivinään: oma kulu · laskutetaan kumppanilta');
 check(/^Huoltoautokorvaus.*vain tarjouksessa.*350,00/.test(find(/^Huoltoautokorvaus/)), 'Huoltoautokorvaus omana rivinään');
 check(!flat.some((l) => /^Kulut \(ajot ja muut\)/.test(l)), 'ei sekavaa yhdistettyä riviä');
 check(/^Kulut yhteensä.*4\s?900,00.*2\s?263,68/.test(find(/^Kulut yhteensä/)), 'Kulut yhteensä 4 900,00 € / 2 263,68 €');

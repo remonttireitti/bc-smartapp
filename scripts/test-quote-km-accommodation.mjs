@@ -71,7 +71,7 @@ const statement = buildAccountingStatement(summary);
 const labels = statement.costs.map((l) => l.label);
 assert.deepEqual(labels, ['Työt', 'Tarvikkeet', 'Ajokilometrit', 'Majoitus', 'Huoltoautokorvaus', 'Kulut yhteensä']);
 const travelLine = statement.costs.find((l) => l.label === 'Ajokilometrit');
-assert.match(travelLine.sub, /^800 km \/ 815,2 km$/);
+assert.match(travelLine.sub, /^800 km \/ 815,2 km · oma kulu · laskutetaan kumppanilta$/, 'km-korvaus laskutetaan kumppanilta');
 assert.equal(new Set(statement.costs.map((l) => l.key)).size, statement.costs.length, 'uniikit avaimet');
 assert.equal(statement.costs.at(-1).estimateNet, 4900);
 assert.equal(statement.costs.at(-1).actualNet, 2263.68);

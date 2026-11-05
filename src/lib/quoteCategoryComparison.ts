@@ -1,4 +1,5 @@
 import { deviceEntryCostSplit, effectiveQuoteDeviceActualNet } from './workReportDeviceEntries';
+import { isAccommodationName } from './expenseNameKinds';
 import { materialPurchaseTotal } from './quoteRequest/calculations';
 import { filterInstallationSupplyRows } from './quoteRequest/installationSupplies';
 import { isKmCompensationMaterial } from './quoteInstallationComparison';
@@ -92,11 +93,7 @@ function rowFromInstallation(
   };
 }
 
-const ACCOMMODATION_PATTERN = /majoit|hotell?i|yöpy|yöpym|asuntola|motelli|hostel/i;
-
-export function isAccommodationName(name: string | null | undefined): boolean {
-  return ACCOMMODATION_PATTERN.test(String(name ?? ''));
-}
+export { isAccommodationName };
 
 /** Majoituksen laskutustila lyhyesti: oma kulu + miten se menee kumppanille. */
 function accommodationBillingNote(lines: Array<{ bill_to_partner?: boolean; bill_to_customer?: boolean }>): string | null {
@@ -186,6 +183,12 @@ function buildExpenseParts(input: {
     }
   }
   const actualTravel = roundMoney(travelRow?.actualCostNet ?? 0);
+  const kmLines: Array<{ bill_to_partner?: boolean; bill_to_customer?: boolean }> = [];
+  for (const log of input.logs) {
+    for (const line of log.expense_lines ?? []) {
+      if (line.expense_type === 'km' || /^Ajomatkat\s*\(/i.test(String(line.description ?? '').trim())) kmLines.push(line);
+    }
+  }
   actualAccommodation = roundMoney(
     Math.min(actualAccommodation, Math.max(0, input.expensesActualNet - actualTravel)),
   );
@@ -203,6 +206,7 @@ function buildExpenseParts(input: {
       actualQty: travelKmRow?.actualQty ?? null,
       quoteNet: quoteTravel,
       actualNet: actualTravel,
+      note: accommodationBillingNote(kmLines),
     });
   }
   if (quoteAccommodation > 0.005 || actualAccommodation > 0.005) {

@@ -123,6 +123,8 @@ export type QuoteSeededRow = {
 export type QuoteSeededRows = {
   quote_request_id: string;
   lines: QuoteSeededRow[];
+  /** Majoitusrivit on korjattu kerran laskutettavaksi kumppanilta (ei palauteta uudelleen). */
+  accommodation_partner_billed?: boolean;
 };
 
 export function parseQuoteSeededRows(raw: unknown): QuoteSeededRows | null {
@@ -144,7 +146,11 @@ export function parseQuoteSeededRows(raw: unknown): QuoteSeededRows | null {
       qty: Number.isFinite(qty) ? qty : 1,
     });
   }
-  return { quote_request_id: quoteId, lines };
+  return {
+    quote_request_id: quoteId,
+    lines,
+    ...(record.accommodation_partner_billed === true ? { accommodation_partner_billed: true } : {}),
+  };
 }
 
 export type BillingQuoteOption = {

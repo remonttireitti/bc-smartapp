@@ -102,6 +102,7 @@
     "test:billing-deductions-collapse": "npx tsx scripts/test-billing-deductions-collapse.mjs",
     "test:quote-outcome-summary": "npx tsx scripts/test-quote-outcome-summary.mjs",
     "test:quote-km-accommodation": "npx tsx scripts/test-quote-km-accommodation.mjs",
+    "test:accommodation-partner-billing": "npx tsx scripts/test-accommodation-partner-billing.mjs",
     "test:hour-billing-mode-summary": "npx tsx scripts/test-hour-billing-mode-summary.mjs",
     "test:quote-title-custom": "npx tsx scripts/test-quote-title-custom.mjs",
     "test:vrf-trend-data": "TZ=Europe/Helsinki npx tsx scripts/test-vrf-trend-data.mjs",

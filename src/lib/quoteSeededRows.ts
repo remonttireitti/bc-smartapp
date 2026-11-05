@@ -1,7 +1,7 @@
 /**
  * Tarjouksen tarvike- ja kulurivit valmiiksi työraporttiin (kuten laite):
  * jokainen kohdistetun tarjouksen Tarvike/Kulu-rivi → työraportin kulurivi (nimi, määrä, tyyppi),
- * hinta 0 €, laskutustapa "kuuluu urakkaan". Käyttäjä syöttää toteutuneen hinnan tai poistaa rivin.
+ * hinta 0 €, laskutustapa "kuuluu urakkaan" (majoitus: "laskutetaan kumppanilta"). Käyttäjä syöttää toteutuneen hinnan tai poistaa rivin.
  * Työtunnit, huoltoautokorvaus/ajot ja laite eivät kuulu tähän (kirjataan päivittäin / LAITE-ruudulla).
  *
  * Kirjanpito billing_quote.quote_seeded_rows (ei migraatiota): mitkä tarjouksen rivit on jo luotu,
@@ -17,6 +17,12 @@ import {
   type QuoteSeededRow,
   type QuoteSeededRows,
 } from './workReportBillingQuote';
+import { isAccommodationName } from './expenseNameKinds';
+import {
+  applyExpenseBillingMode,
+  resolveExpenseBillingMode,
+  type ExpenseBillingMode,
+} from './workReportExpenseBilling';
 import { expenseTypeCategory } from './workReportEntryCategories';
 import { latestDailyLog } from './workReportDeviceEntries';
 import { fetchWorkReportDetailLogs } from './workReportDailyLogSelect';
@@ -109,10 +115,25 @@ export function quoteRowMatchesLine(row: Pick<QuoteSeededRow, 'description' | 'e
   return short.length >= 4 && long.includes(short);
 }
 
-/** Luotu rivi, jota käyttäjä ei ole muuttanut: 0 €, kuuluu urakkaan, sama tyyppi, nimi ja määrä. */
+function lineBillingMode(line: ExpenseLineLike): ExpenseBillingMode {
+  return resolveExpenseBillingMode({
+    bill_to_partner: line.bill_to_partner ?? undefined,
+    bill_to_customer: line.bill_to_customer ?? undefined,
+  });
+}
+
+/**
+ * Tarjouksesta luodun rivin oletuslaskutustapa: majoitus on oma kulu, joka laskutetaan kumppanilta
+ * (ja syö katetta tarjouksen kulun tavoin); muut rivit kuuluvat urakkaan.
+ */
+export function seededRowBillingMode(row: Pick<QuoteSeededRow, 'description'>): ExpenseBillingMode {
+  return isAccommodationName(row.description) ? 'partner_and_customer' : 'included_in_contract';
+}
+
+/** Luotu rivi, jota käyttäjä ei ole muuttanut: 0 €, oletuslaskutustapa, sama tyyppi, nimi ja määrä. */
 export function isUntouchedSeededLine(line: ExpenseLineLike, seeded: QuoteSeededRow): boolean {
   if (!expenseLinePriceMissing(line)) return false;
-  if (line.bill_to_partner !== false || line.bill_to_customer !== false) return false;
+  if (lineBillingMode(line) !== seededRowBillingMode(seeded)) return false;
   if (String(line.expense_type) !== seeded.expense_type) return false;
   if (normalizeRowName(line.description) !== normalizeRowName(seeded.description)) return false;
   return Math.abs(Number(line.qty) - Number(seeded.qty)) < 0.0005;
@@ -121,6 +142,8 @@ export function isUntouchedSeededLine(line: ExpenseLineLike, seeded: QuoteSeeded
 export type QuoteRowSyncPlan = {
   /** Poistettavat kulurivit (vanhan tarjouksen koskemattomat 0 €-rivit). */
   deleteLineIds: string[];
+  /** Majoitusrivit, jotka siirretään tilasta "kuuluu urakkaan" tilaan "laskutetaan kumppanilta" (kerran). */
+  accommodationFixLineIds: string[];
   /** Lisättävät rivit työkirjaukseen targetLogId. */
   insertRows: QuoteSeededRow[];
   /** Viimeisin työkirjaus; null = ei kirjauksia (rivit odottavat ensimmäistä kirjausta). */
@@ -133,6 +156,7 @@ export type QuoteRowSyncPlan = {
 
 function seededEqual(a: QuoteSeededRows | null | undefined, b: QuoteSeededRows): boolean {
   if (!a) return false;
+  if ((a.accommodation_partner_billed === true) !== (b.accommodation_partner_billed === true)) return false;
   if (a.quote_request_id !== b.quote_request_id || a.lines.length !== b.lines.length) return false;
   const ids = new Set(a.lines.map((line) => line.id));
   return b.lines.every((line) => ids.has(line.id));
@@ -200,14 +224,39 @@ export function planQuoteRowSync(input: {
     if (seededIds.has(candidate.id)) continue;
     if (matchedIds.has(candidate.id) || insertRows.includes(candidate)) nextLines.push(candidate);
   }
-  const nextSeeded: QuoteSeededRows = { quote_request_id: input.quoteId, lines: nextLines };
+
+  // Majoitus on oma kulu, joka laskutetaan kumppanilta: aiemmin luodut/kirjatut "kuuluu urakkaan" -majoitusrivit
+  // korjataan kerran (merkintä quote_seeded_rows.accommodation_partner_billed, jotta tietoinen valinta säilyy).
+  const quoteHasAccommodation = candidates.some((candidate) => isAccommodationName(candidate.description));
+  const alreadyFixed = sameQuote && input.seeded?.accommodation_partner_billed === true;
+  const accommodationFixLineIds: string[] = [];
+  if (quoteHasAccommodation && !alreadyFixed) {
+    for (const line of remaining) {
+      if (!line.id || !isAccommodationName(line.description)) continue;
+      if (lineBillingMode(line) !== 'included_in_contract') continue;
+      accommodationFixLineIds.push(line.id);
+    }
+  }
+  const nextSeeded: QuoteSeededRows = {
+    quote_request_id: input.quoteId,
+    lines: nextLines,
+    // Uudet majoitusrivit syntyvät jo oikealla laskutustavalla, joten merkintä riittää kerran.
+    ...(quoteHasAccommodation ? { accommodation_partner_billed: true } : {}),
+  };
   const changed =
-    deleteLineIds.length > 0 || insertRows.length > 0 || !seededEqual(input.seeded, nextSeeded);
-  return { deleteLineIds, insertRows, targetLogId, pendingRows, nextSeeded, changed };
+    deleteLineIds.length > 0
+    || insertRows.length > 0
+    || accommodationFixLineIds.length > 0
+    || !seededEqual(input.seeded, nextSeeded);
+  return { deleteLineIds, accommodationFixLineIds, insertRows, targetLogId, pendingRows, nextSeeded, changed };
 }
 
-/** Työraportin kulurivin tallennusmuoto luodulle riville (0 €, kuuluu urakkaan). */
+/** Työraportin kulurivin tallennusmuoto luodulle riville (0 €, oletuslaskutustapa). */
 export function seededRowInsertPayload(row: QuoteSeededRow, dailyLogId: string, sortOrder: number) {
+  const billing = applyExpenseBillingMode<{ bill_to_partner?: boolean; bill_to_customer?: boolean }>(
+    {},
+    seededRowBillingMode(row),
+  );
   return {
     daily_log_id: dailyLogId,
     expense_type: row.expense_type,
@@ -215,8 +264,8 @@ export function seededRowInsertPayload(row: QuoteSeededRow, dailyLogId: string, 
     qty: row.qty,
     unit_price: 0,
     customer_unit_price: null,
-    bill_to_partner: false,
-    bill_to_customer: false,
+    bill_to_partner: billing.bill_to_partner,
+    bill_to_customer: billing.bill_to_customer,
     sort_order: sortOrder,
   };
 }
@@ -234,6 +283,10 @@ export function mergeSeededRows(
     quote_seeded_rows: {
       quote_request_id: quoteId,
       lines: [...current, ...rows.filter((row) => !ids.has(row.id))],
+      // Uusi rivi syntyy jo oikealla laskutustavalla → ei tarvita jälkikorjausta.
+      ...(settings.quote_seeded_rows?.quote_request_id === quoteId && settings.quote_seeded_rows.accommodation_partner_billed
+        ? { accommodation_partner_billed: true }
+        : {}),
     },
   };
 }
@@ -283,6 +336,13 @@ export async function syncQuoteRowsToWorkReport(
     const { error } = await supabase.from('work_report_daily_expense_lines').delete().in('id', plan.deleteLineIds);
     if (error) throw new Error(error.message);
   }
+  if (plan.accommodationFixLineIds.length > 0) {
+    const { error } = await supabase
+      .from('work_report_daily_expense_lines')
+      .update({ bill_to_partner: true, bill_to_customer: true })
+      .in('id', plan.accommodationFixLineIds);
+    if (error) throw new Error(error.message);
+  }
   if (plan.insertRows.length > 0 && plan.targetLogId) {
     const target = logs.find((log) => log.id === plan.targetLogId);
     const offset = (target?.expense_lines ?? []).length;
@@ -298,7 +358,8 @@ export async function syncQuoteRowsToWorkReport(
     console.error('Tarjouksen rivien kirjanpidon tallennus epäonnistui:', error);
   }
   return {
-    changed: plan.deleteLineIds.length > 0 || plan.insertRows.length > 0,
+    changed:
+      plan.deleteLineIds.length > 0 || plan.insertRows.length > 0 || plan.accommodationFixLineIds.length > 0,
     pendingRows: plan.pendingRows,
     quoteId,
   };
