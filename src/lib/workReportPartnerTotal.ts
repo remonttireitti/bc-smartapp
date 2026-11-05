@@ -5,8 +5,16 @@ import {
   moveContractorCostLines,
   restoreContractorCostLines,
   stripAutoPartnerCommission,
+  includeUrakkaExpenseLines,
   type BillableCalculation,
 } from './workReportBilling';
+import { compareQuoteCategories } from './quoteCategoryComparison';
+import { summarizeReportUrakka } from './workReportUrakkaReport';
+import {
+  mergeUrakkaMaterialDeduction,
+  stripUrakkaMaterialDeduction,
+  urakkaMaterialBillDelta,
+} from './workReportUrakkaMaterials';
 import { expenseTypeCategory } from './workReportEntryCategories';
 import {
   billingQuoteHasData,
@@ -68,7 +76,9 @@ export function applyQuoteCommissionToPartnerCalculation(input: {
 }): { calculation: BillableCalculation; partnerMargin: PartnerMarginComputed | null } {
   // Aiempi urakoitsijaketju palautetaan ensin: kulupohja täydeksi ja laskun saaja tilaajaksi.
   const previousContractorInvoice = input.calculation.contractorInvoice ?? null;
-  const restored = restoreContractorCostLines(stripAutoPartnerCommission(input.calculation));
+  const restored = restoreContractorCostLines(
+    stripUrakkaMaterialDeduction(stripAutoPartnerCommission(input.calculation)),
+  );
   const base: BillableCalculation = previousContractorInvoice
     ? {
         ...restored,
@@ -136,14 +146,56 @@ export function applyQuoteCommissionToPartnerCalculation(input: {
     });
     return { calculation, partnerMargin };
   }
-  const calculation = mergeAutoPartnerCommission(base, {
+  const withCommission = mergeAutoPartnerCommission(base, {
     amount: partnerMargin.commissionNet,
     percent: partnerMargin.commissionPercent,
     note: autoPartnerCommissionDescription(partnerMargin),
     logs: input.logs,
     logDate: latestLogDate(input.logs),
   });
+  const calculation = applyUrakkaMaterialDeduction(withCommission, base, effectiveSettings, input.logs, input.quoteData ?? null);
   return { calculation, partnerMargin };
+}
+
+/**
+ * Urakka asiakashinnasta: toteutuneet tarvikekulut vähennetään asiakashinnasta ENNEN kumppanijakoa
+ * (kumppanilasku = osuus % × (asiakashinta − tarvikkeet)). Lisätään kumppanilaskulle negatiivinen
+ * urakkarivi. Tarvikkeet eivät ole tämän lisäksi urakoitsijan omia kuluja (yhteenveto jättää ne pois).
+ */
+function applyUrakkaMaterialDeduction(
+  calculation: BillableCalculation,
+  base: BillableCalculation,
+  settings: ReturnType<typeof mergeActualPurchaseFromWorkReportLogs>,
+  logs: WorkReportDailyLog[],
+  quoteData: unknown | null,
+): BillableCalculation {
+  if (!quoteData) return calculation;
+  const urakka = summarizeReportUrakka(logs);
+  if (!urakka.hasUrakka || urakka.mode !== 'from_customer' || !(urakka.customerTotal && urakka.customerTotal > 0)) {
+    return calculation;
+  }
+  // Takuu / ei laskulla → ei urakkariviä, ei vähennystä.
+  const hasBilledUrakka = base.byUser.some((user) =>
+    user.lines.some((line) => line.kind === 'fixed_price' && line.included && !line.warranty && line.total > 0),
+  );
+  if (!hasBilledUrakka) return calculation;
+  const comparison = compareQuoteCategories({
+    quoteData,
+    partnerCalculation: includeUrakkaExpenseLines(base),
+    logs,
+    partnerRates: base.ratesUsed,
+    billingSettings: settings,
+  });
+  const materials = comparison?.rows.find((row) => row.key === 'supplies')?.actualNet ?? 0;
+  const delta = urakkaMaterialBillDelta(urakka.customerTotal, urakka.partnerPercent, materials);
+  if (!(delta < -0.005)) return calculation;
+  const pct = String(urakka.partnerPercent).replace('.', ',');
+  const materialsText = `${(Math.round(materials * 100) / 100).toFixed(2).replace('.', ',')} €`;
+  return mergeUrakkaMaterialDeduction(calculation, {
+    amount: delta,
+    description: `Tarvikekulut ${materialsText} vähennetty asiakashinnasta ennen jakoa (${pct} %)`,
+    logDate: latestLogDate(logs) ?? new Date().toISOString().slice(0, 10),
+  });
 }
 
 /**
