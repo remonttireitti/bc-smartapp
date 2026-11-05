@@ -35,6 +35,7 @@
     "test:billable-amount-split": "npx tsx scripts/test-billable-amount-split.mjs",
     "test:work-report-customer-print-quantities": "npx tsx scripts/test-work-report-customer-print-quantities.mjs",
     "test:work-report-trip-legs": "npx tsx scripts/test-work-report-trip-legs.mjs",
+    "test:trip-distance": "npx tsx scripts/test-trip-distance.mjs",
     "test:refrigerant-purchase-sale-list": "npx tsx scripts/test-refrigerant-purchase-sale-list.mjs",
     "test:refrigerant-inventory-history": "npx tsx scripts/test-refrigerant-inventory-history.mjs",
     "test:refrigerant-inventory-report": "npx tsx scripts/test-refrigerant-inventory-report.mjs",

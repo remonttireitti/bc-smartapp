@@ -28,13 +28,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = Deno.env.get('OPENROUTESERVICE_API_KEY')?.trim();
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'OpenRouteService API-avain puuttuu palvelimelta.' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // Avain on valinnainen: ilman sitä (tai jos ORS ei vastaa) käytetään OpenStreetMap-varapalvelua.
+    const apiKey = Deno.env.get('OPENROUTESERVICE_API_KEY')?.trim() ?? '';
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
