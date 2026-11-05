@@ -41,6 +41,7 @@ import {
 import {
   formatEuro,
   restoreContractorCostLines,
+  includeUrakkaExpenseLines,
   type BillableCalculation,
 } from '../lib/workReportBilling';
 import {
@@ -294,11 +295,26 @@ export default function WorkReportBillingQuotePanel({
     () => resolveOutcomeUrakka(partnerCalculation, dailyLogs),
     [partnerCalculation, dailyLogs],
   );
+  // Urakkaraportissa urakoitsijan omat kulut (ajot, majoitus…) luetaan mukaan, vaikka ne kuuluvat urakkaan.
+  const outcomeComparison = useMemo(
+    () =>
+      outcomeUrakka && quoteData && partnerCalculation
+        ? compareQuoteCategories({
+            quoteData,
+            partnerCalculation: includeUrakkaExpenseLines(partnerCalculation),
+            logs: dailyLogs,
+            partnerRates: partnerCalculation.ratesUsed,
+            tripKmRate,
+            billingSettings: effectiveSettings,
+          })
+        : categoryComparison,
+    [outcomeUrakka, quoteData, partnerCalculation, dailyLogs, tripKmRate, effectiveSettings, categoryComparison],
+  );
   const outcomeSummary = useMemo(
     () =>
       buildQuoteOutcomeSummary({
         partnerMargin: showPartnerMargin ? partnerMargin : null,
-        comparison: categoryComparison,
+        comparison: outcomeComparison,
         quoteSaleNet: effectiveSettings.quote_sale_net,
         formatEuro,
         deviceSeller:
@@ -318,7 +334,7 @@ export default function WorkReportBillingQuotePanel({
       outcomeUrakka,
       showPartnerMargin,
       partnerMargin,
-      categoryComparison,
+      outcomeComparison,
       effectiveSettings.quote_sale_net,
       effectiveSettings.contractor_company_name,
       effectiveSettings.installer_bills_supplies,

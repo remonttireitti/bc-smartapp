@@ -181,6 +181,33 @@ export function restoreContractorCostLines(calculation: BillableCalculation): Bi
 }
 
 /**
+ * Urakkaraportin kulurivit, jotka kuuluvat urakkaan (eivät omalla laskulla), luetaan mukaan:
+ * ne ovat silti urakoitsijan omia kuluja. Vain vertailun pohja — laskua ei muuteta.
+ */
+export function includeUrakkaExpenseLines(calculation: BillableCalculation): BillableCalculation {
+  let changed = false;
+  const byUser = calculation.byUser.map((user) => {
+    let add = 0;
+    const lines = user.lines.map((line) => {
+      if (line.kind === 'expense' && !line.included && line.notBilledReason === 'urakka') {
+        add += line.total;
+        changed = true;
+        return { ...line, included: true };
+      }
+      return line;
+    });
+    if (add === 0) return user;
+    return {
+      ...user,
+      lines,
+      expensesTotal: Math.round((user.expensesTotal + add) * 100) / 100,
+      subtotal: Math.round((user.subtotal + add) * 100) / 100,
+    };
+  });
+  return changed ? { ...calculation, byUser } : calculation;
+}
+
+/**
  * Siirtää urakoitsijan omat kulurivit (predikaatti) pois asentajan laskulta
  * contractorCostLines-kenttään. Syötettä ei muuteta.
  */
