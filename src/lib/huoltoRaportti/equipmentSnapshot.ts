@@ -833,6 +833,40 @@ function deviceFieldsFromReport(form: HuoltoReportData, snapshot: Record<string,
 }
 
 /** Create or update equipment row from report laitetiedot + technical snapshot. */
+const normTag = (v: unknown) => trim(v).replace(/\s+/g, ' ').toLocaleLowerCase('fi');
+
+/** Samalla asiakkaalla ei voi olla kahta laitetta samalla tunnuksella (kirjainkoko ja välilyönnit ohitetaan). */
+export async function findDuplicateEquipmentTag(
+  supabase: SupabaseClient,
+  customerId: string,
+  tag: unknown,
+  excludeEquipmentId: string | null,
+): Promise<string | null> {
+  const wanted = normTag(tag);
+  if (!customerId || !realIdentityValue(tag)) return null;
+  const { data, error } = await supabase.from('equipment').select('id, tag').eq('customer_id', customerId);
+  if (error || !Array.isArray(data)) return null;
+  const rows = data as { id: string; tag: string | null }[];
+  // Vanha tunnus ennallaan → ei estetä tallennusta (vanhat kaksoiskappaleet korjataan käsin).
+  if (excludeEquipmentId && rows.some((r) => r.id === excludeEquipmentId && normTag(r.tag) === wanted)) return null;
+  const hit = (rows as { id: string; tag: string | null }[]).find(
+    (row) => row.id !== excludeEquipmentId && normTag(row.tag) === wanted,
+  );
+  return hit ? trim(hit.tag) : null;
+}
+
+export async function assertEquipmentTagUnique(
+  supabase: SupabaseClient,
+  customerId: string,
+  tag: unknown,
+  excludeEquipmentId: string | null,
+): Promise<void> {
+  const dup = await findDuplicateEquipmentTag(supabase, customerId, tag, excludeEquipmentId);
+  if (dup) {
+    throw new Error(`Asiakkaalla on jo laite tunnuksella "${dup}". Anna uudelle laitteelle oma tunnus (esim. JK2).`);
+  }
+}
+
 export async function saveEquipmentFromReport(
   form: HuoltoReportData,
   customerId: string,
@@ -841,6 +875,7 @@ export async function saveEquipmentFromReport(
   supabase: SupabaseClient,
   opts: ReportEquipmentSyncOptions = {},
 ): Promise<string> {
+  await assertEquipmentTagUnique(supabase, customerId, form.laiteTunnus, equipmentId);
   const snapshot = buildHuoltoEquipmentTechnicalSnapshot(form);
   const payload = {
     owner_company_id: ownerCompanyId,

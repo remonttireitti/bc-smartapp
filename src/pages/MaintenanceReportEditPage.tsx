@@ -2,7 +2,7 @@ import { OPEN_DRAFT_FLASH, findOpenDraftForEquipment } from '../lib/huoltoRaport
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { emitDataChanged } from '../lib/dataRefresh';
-import { huoltoPerformerFields } from '../lib/huoltoRaportti/performerFromProfile';
+import { huoltoPerformerFieldsKeepingFiller } from '../lib/huoltoRaportti/performerFromProfile';
 import NavigationBreadcrumb from '../components/NavigationBreadcrumb';
 import LeaveDraftDialog from '../components/LeaveDraftDialog';
 import { useMaintenanceReportNavigation } from '../hooks/useMaintenanceReportNavigation';
@@ -719,8 +719,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
 
   useEffect(() => {
     if (profileLoading || loadingReport || status !== 'draft') return;
-    const performer = huoltoPerformerFields(profile, session);
     const prev = formStateRef.current.form;
+    const performer = huoltoPerformerFieldsKeepingFiller(prev, profile, session);
     if (
       prev.huoltoSuorittajaNimi === performer.huoltoSuorittajaNimi &&
       prev.huoltoSuorittajaTUKES === performer.huoltoSuorittajaTUKES
@@ -1814,6 +1814,8 @@ export default function MaintenanceReportEditPage({ session }: Props) {
           refrigerantEditedRef.current = false;
         } catch (syncErr) {
           console.error(syncErr);
+          const msg = syncErr instanceof Error ? syncErr.message : '';
+          if (msg.startsWith('Asiakkaalla on jo laite')) setError(msg);
         }
       }
 
@@ -1928,7 +1930,7 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     return normalizeHuoltoReportData({
       ...currentForm,
       ...syncIlpOutdoorIdentity(currentForm),
-      ...huoltoPerformerFields(profile, session),
+      ...huoltoPerformerFieldsKeepingFiller(currentForm, profile, session),
       customerId: customerId || currentForm.customerId,
       asiakas: currentForm.asiakas.trim() || selectedCustomer?.name || '',
       osoite: currentForm.osoite.trim() || registryAddress || '',
