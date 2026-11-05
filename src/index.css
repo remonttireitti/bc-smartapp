@@ -18332,3 +18332,22 @@ a.device-history-row:hover { background: #f4f7fb; }
 .inventory-bottle-detail-link { margin: 12px 0; }
 .inventory-bottle-detail-link label { display: flex; flex-direction: column; gap: 4px; }
 .inventory-bottle-detail-link .btn { align-self: flex-start; min-height: 48px; }
+
+/* Työkirjauksen kytkimet (Urakka / Takuu / Laskutettava): riville väliä, ei päällekkäin eikä leikkaannu */
+.daily-log-toggle-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin: 12px 0 8px; }
+.daily-log-toggle-row .compact-option { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; font-size: 16px; line-height: 1.25; white-space: normal; flex: 0 1 auto; }
+.daily-log-toggle-row .toggle-switch { flex: 0 0 auto; }
+.daily-log-urakka-hint { margin: 0 0 8px; font-size: 14px; line-height: 1.35; }
+.daily-log-hours-primary .daily-log-hour-block-hint { display: block; overflow-wrap: anywhere; line-height: 1.35; }
+
+/* Koko raportin urakkahinta */
+.urakka-report-form { display: grid; gap: 14px; min-width: 0; }
+.urakka-report-toggle { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; font-size: 16px; }
+.urakka-report-field { display: grid; gap: 6px; min-width: 0; font-size: 16px; line-height: 1.3; }
+.urakka-report-field span { overflow-wrap: anywhere; }
+.urakka-report-field input { box-sizing: border-box; width: 100%; min-height: 48px; font-size: 16px; }
+.urakka-report-result { display: grid; gap: 8px; margin: 0; padding: 12px; border: 1px solid var(--border, #d1d5db); border-radius: 10px; background: var(--surface-muted, #f9fafb); }
+.urakka-report-result > div { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.urakka-report-result dt { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+.urakka-report-result dd { margin: 0; font-size: 16px; font-weight: 700; }
+.urakka-report-actions .btn { min-height: 48px; font-size: 16px; }

@@ -61,7 +61,6 @@ import { useQuoteDeviceLines } from '../hooks/useQuoteDeviceLines';
 import {
   DEVICE_EXPENSE_TYPE,
   isDeviceExpense,
-  latestDailyLog,
   quoteDeviceSuggestions,
 } from '../lib/workReportDeviceEntries';
 
@@ -237,8 +236,23 @@ import {
 import {
   computePartnerUrakkaFromCustomer,
   DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT,
-  previewPartnerUrakkaAmount,
 } from '../lib/workReportUrakkaBilling';
+import {
+  buildUrakkaReportPatch,
+  summarizeReportUrakka,
+  urakkaLogsSorted,
+  urakkaLogsToClear,
+  urakkaPricePatchFromLog,
+  EMPTY_URAKKA_PRICE_PATCH,
+  type UrakkaReportPriceInput,
+} from '../lib/workReportUrakkaReport';
+import {
+  buildUrakkaToggleUpdates,
+  buildWarrantyToggleUpdates,
+  reportWarrantyOn,
+  type LogPatch,
+} from '../lib/workReportReportFlags';
+import WorkReportUrakkaPanel from '../components/WorkReportUrakkaPanel';
 import { refreshAndPersistPartnerBillable, markPartnerBillableRecalcNeeded } from '../lib/workReportPartnerBillingPersist';
 import { useReportQuoteLinker } from '../components/QuoteWorkReportLinker';
 import {
@@ -595,22 +609,6 @@ function buildLogPayload(
   };
 }
 
-function applyUrakkaCustomerPrice(form: DailyLogFormState, customerValue: string): DailyLogFormState {
-  const next = { ...form, customer_fixed_price_amount: customerValue };
-  if (!form.partner_urakka_manual) {
-    next.fixed_price_amount = String(previewPartnerUrakkaAmount(next));
-  }
-  return next;
-}
-
-function applyUrakkaMargin(form: DailyLogFormState, marginValue: string): DailyLogFormState {
-  const next = { ...form, partner_urakka_margin_percent: marginValue };
-  if (!form.partner_urakka_manual) {
-    next.fixed_price_amount = String(previewPartnerUrakkaAmount(next));
-  }
-  return next;
-}
-
 export function DailyLogFields({
   form,
   setForm,
@@ -702,7 +700,6 @@ export function DailyLogFields({
       : expenseCategoryFilter === 'expenses'
         ? 'Kulut'
         : 'Kulut ja tarvikkeet';
-  const partnerUrakkaPreview = previewPartnerUrakkaAmount(form);
   const rowBillMode: 'urakka' | 'warranty' | null =
     form.entry_type === 'fixed_price' && form.partner_urakka_all_in ? 'urakka' : form.partner_warranty ? 'warranty' : null;
 
@@ -821,7 +818,7 @@ export function DailyLogFields({
               <span className="muted daily-log-hour-block-hint">
                 {form.partner_hours_row_billed
                 ? 'Laskutetaan normaalihinnalla urakan päälle (Lisälaskutus).'
-                : 'Ei laskuteta — käytetään vain kalenterissa ja päällekkäisyystarkistuksessa.'}
+                : 'Vain kalenteriin, ei laskuteta.'}
               </span>
             </label>
           ) : (
@@ -864,59 +861,6 @@ export function DailyLogFields({
             onChange={(hours_on_call) => setForm({ ...form, hours_on_call })}
             quickbarAriaLabel="Lisää päivystystunteja"
           />
-        )}
-        {showFixed && showPartnerPrices ? (
-          <label className="urakka-price-field">
-            Urakkahinta (€, alv 0 %)
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.fixed_price_amount}
-              onChange={(e) => setForm({ ...form, fixed_price_amount: e.target.value })}
-              placeholder="0 = ei laskuteta"
-            />
-          </label>
-        ) : null}
-        {showFixed && !showPartnerPrices && (
-          <>
-            <label className="urakka-price-field">
-              Urakkahinta (€, alv 0 %)
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.customer_fixed_price_amount}
-                onChange={(e) => setForm(applyUrakkaCustomerPrice(form, e.target.value))}
-                placeholder="0 = ei laskuteta"
-              />
-            </label>
-            {!form.partner_urakka_manual ? (
-              <label>
-                Provisio / kate kumppanille (%)
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="99.99"
-                  value={form.partner_urakka_margin_percent}
-                  onChange={(e) => setForm(applyUrakkaMargin(form, e.target.value))}
-                />
-              </label>
-            ) : (
-              <label>
-                Urakkahinta kumppanille (€)
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.fixed_price_amount}
-                  onChange={(e) => setForm({ ...form, fixed_price_amount: e.target.value })}
-                  placeholder="Sovittu kumppanihinta"
-                />
-              </label>
-            )}
-          </>
         )}
         {showHourlyRate && !showFixed && (
           <label className="daily-log-hour-rate-field">
@@ -1024,95 +968,36 @@ export function DailyLogFields({
           ) : null}
         </div>
       ) : null}
-      <label className="compact-option">
-        <CheckToggle
-          checked={form.entry_type === 'fixed_price'}
-          onChange={(e) =>
-            setForm((current) => ({
-              ...current,
-              entry_type: e.target.checked ? 'fixed_price' : 'regular',
-              partner_urakka_all_in: e.target.checked,
-              partner_extra_billing: e.target.checked ? false : current.partner_extra_billing,
-            }))
-          }
-        />
-        Urakka
-      </label>
-      <label className="compact-option">
-        <CheckToggle
-          checked={form.partner_warranty}
-          onChange={(e) => {
-            const checked = e.target.checked;
-            setForm({ ...form, partner_warranty: checked });
-            // Takuu: rivit ovat oletuksena takuuta; Laskutettava-kytkin laskuttaa takuun ulkopuoliset.
-            if (checked) setExpenseDrafts((current) => current.map((row) => (isLikelyAutoTripKmExpense(row) ? row : { ...row, warranty: true })));
-          }}
-        />
-        Takuu
-      </label>
-      {form.entry_type === 'fixed_price' || form.partner_warranty ? (
-        <label className="compact-option hours-row-bill-toggle">
-          <CheckToggle
-            checked={form.partner_hours_row_billed}
-            onChange={(e) => setForm({ ...form, partner_hours_row_billed: e.target.checked })}
-          />
-          Laskutettava (tunnit)
-        </label>
-      ) : null}
-      {showExtraBillingToggle && !showFixed ? (
-        <label className="compact-option">
-          <CheckToggle
-            checked={form.partner_extra_billing}
-            onChange={(e) => setForm({ ...form, partner_extra_billing: e.target.checked })}
-          />
-          Lisälaskutus (urakan päälle)
-        </label>
-      ) : null}
-      {showFixed && showPartnerPrices ? (
-        <p className="muted" style={{ margin: '0 0 .65rem' }}>
-          Kumppanille laskutettava: <strong>{formatEuro(Number(form.fixed_price_amount) > 0 ? Number(form.fixed_price_amount) : 0)}</strong>
-        </p>
-      ) : null}
-      {showFixed && !showPartnerPrices && (
-        <div className="urakka-billing-split">
+      <div className="daily-log-toggle-row">
+        {form.entry_type === 'fixed_price' || form.partner_warranty ? (
+          <label className="compact-option hours-row-bill-toggle">
+            <CheckToggle
+              checked={form.partner_hours_row_billed}
+              onChange={(e) => setForm({ ...form, partner_hours_row_billed: e.target.checked })}
+            />
+            Laskutettava (tunnit)
+          </label>
+        ) : null}
+        {showExtraBillingToggle ? (
           <label className="compact-option">
             <CheckToggle
-              checked={form.partner_urakka_manual}
+              checked={form.partner_extra_billing}
               onChange={(e) =>
-                setForm({
-                  ...form,
-                  partner_urakka_manual: e.target.checked,
-                  partner_urakka_margin_percent: e.target.checked
-                    ? form.partner_urakka_margin_percent
-                    : String(DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT),
-                })
+                setForm((current) => ({
+                  ...current,
+                  partner_extra_billing: e.target.checked,
+                  entry_type: e.target.checked ? 'regular' : 'fixed_price',
+                  partner_urakka_all_in: !e.target.checked,
+                }))
               }
             />
-            Kumppanihinta sovittu erikseen (syötä suoraan)
+            Lisälaskutus (urakan päälle)
           </label>
-          {!form.partner_urakka_manual ? (
-            <p className="muted" style={{ margin: '0 0 .65rem' }}>
-              Kumppanille laskutettava: <strong>{formatEuro(partnerUrakkaPreview)}</strong>
-              {Number(form.customer_fixed_price_amount) > 0 ? (
-                <>
-                  {' '}
-                  (asiakas {formatEuro(Number(form.customer_fixed_price_amount))} − provisio{' '}
-                  {form.partner_urakka_margin_percent || DEFAULT_PARTNER_URAKKA_MARGIN_PERCENT} %)
-                </>
-              ) : null}
-            </p>
-          ) : null}
-          {form.partner_urakka_manual ? (
-            <p className="muted" style={{ margin: '0 0 .65rem' }}>
-              Syötä kumppanin kanssa sovittu urakkahinta yllä. Asiakashinta on erillinen kenttä.
-            </p>
-          ) : (
-            <p className="muted" style={{ margin: '0 0 .65rem' }}>
-              Täytä asiakkaan urakkahinta ja provisio-% — kumppanihinta lasketaan automaattisesti.
-            </p>
-          )}
-        </div>
-      )}
+        ) : null}
+      </div>
+      {form.entry_type === 'fixed_price' || form.partner_warranty ? (
+        <p className="muted daily-log-urakka-hint">Urakka ja takuu asetetaan koko raportille (Urakka ja takuu -ruutu).</p>
+      ) : null}
       </DailyLogTileSection>
 
       <DailyLogTileSection
@@ -1294,12 +1179,14 @@ const DAILY_LOG_ADD_SECTIONS: Record<'work' | 'expenses' | 'materials', string[]
 const DAILY_LOG_ADD_DEFAULT_WORK: Record<string, string> = {
   expenses: 'Kulut',
   materials: 'Tarvikkeet ja varaosat',
+  device: 'Laitteen hankinta',
 };
 
 const DAILY_LOG_ADD_TITLES: Record<string, string> = {
   work: 'Lisää työ',
   expenses: 'Lisää kulu',
   materials: 'Lisää tarvike tai varaosa',
+  device: 'Lisää laite',
 };
 
 const DAILY_LOG_FOCUS_TITLES: Record<DailyLogEntryTileKind, string> = {
@@ -1460,9 +1347,11 @@ export default function WorkReportDetailPage({ session }: Props) {
     expenseKey: string | null;
   } | null>(null);
   const [sectionDialog, setSectionDialog] = useState<
-    null | 'basics' | 'partner-billing' | 'customer-billing' | 'partner-summary'
+    null | 'basics' | 'urakka' | 'partner-billing' | 'customer-billing' | 'partner-summary'
   >(null);
   const [logDialogBusy, setLogDialogBusy] = useState(false);
+  const [urakkaBusy, setUrakkaBusy] = useState(false);
+  const [urakkaError, setUrakkaError] = useState<string | null>(null);
   const [dailyLogNotice, setDailyLogNotice] = useState<DailyLogActionNotice | null>(null);
   const [logForm, setLogForm] = useState(initialLogForm);
   const focusAddDate = logDialogOpen && logDialogFocus?.adding ? logForm.log_date : null;
@@ -1506,6 +1395,8 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [customerEquipment, setCustomerEquipment] = useState<Equipment[]>([]);
   const [equipmentIdsDraft, setEquipmentIdsDraft] = useState<string[]>([]);
   const [savedEquipmentIds, setSavedEquipmentIds] = useState<string[]>([]);
+  const [equipmentBusy, setEquipmentBusy] = useState(false);
+  const [equipmentNotice, setEquipmentNotice] = useState<string | null>(null);
 
   const billingModuleEnabled = useCompanyBillingModuleEnabled(profile?.company_id, session);
   const [inventoryPickItems, setInventoryPickItems] = useState<InventoryPickItem[]>([]);
@@ -2388,6 +2279,38 @@ export default function WorkReportDetailPage({ session }: Props) {
     setCustomerEquipment([]);
   }
 
+  /**
+   * Laitekohdistus tallentuu heti valinnasta (ei erillistä "Tallenna perustiedot" -painiketta).
+   * Asiakkaan vaihto tallennetaan edelleen perustietojen mukana.
+   */
+  async function persistEquipmentSelection(ids: string[]) {
+    if (!report) return;
+    const previous = savedEquipmentIds;
+    setEquipmentIdsDraft(ids);
+    if (customerIdDraft !== (report.customer_id ?? '')) return;
+    if (ids.length === previous.length && ids.every((id, index) => id === previous[index])) return;
+    setEquipmentBusy(true);
+    setError(null);
+    const { error: updateError } = await supabase
+      .from('work_reports')
+      .update({ equipment_id: ids[0] ?? null })
+      .eq('id', report.id);
+    const linkError = updateError
+      ? updateError.message
+      : (await saveWorkReportEquipmentLinks(supabase, report.id, ids)).error;
+    setEquipmentBusy(false);
+    if (linkError) {
+      // Linkkien tallennus on poisto + lisäys: palauta edellinen tila, ettei kohdistus katoa.
+      await saveWorkReportEquipmentLinks(supabase, report.id, previous);
+      setEquipmentIdsDraft(previous);
+      setError(`Laitekohdistus ei tallentunut: ${linkError}`);
+      return;
+    }
+    setSavedEquipmentIds(ids);
+    setEquipmentNotice('Laitekohdistus tallennettu');
+    window.setTimeout(() => setEquipmentNotice(null), 2500);
+  }
+
   async function createEquipmentForReport(draft: NewEquipmentDraft) {
     if (!report || !customerIdDraft || !draft.name.trim()) {
       setError('Laitteen nimi on pakollinen.');
@@ -2418,7 +2341,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     setCustomerEquipment((prev) =>
       [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'fi')),
     );
-    setEquipmentIdsDraft((prev) => (prev.includes(created.id) ? prev : [...prev, created.id]));
+    void persistEquipmentSelection(equipmentIdsDraft.includes(created.id) ? equipmentIdsDraft : [...equipmentIdsDraft, created.id]);
   }
 
   async function assignDelegatedWork(userId: string) {
@@ -2992,45 +2915,34 @@ export default function WorkReportDetailPage({ session }: Props) {
   }
 
   /**
-   * LAITE-ruutu: laite lisätään viimeisimpään työkirjaukseen (ei uutta kirjausta); jos kirjauksia ei ole,
-   * avataan uusi kirjaus. Laite-ruutu ja rivin lomake aukeavat suoraan, esitäytettynä tarjouspyynnöstä.
+   * Laite lisätään kuten kulu ja tarvike: "+ Lisää laite" → päivä + Laite-osio (sama päivän kirjaus, ei kaksoiskirjausta).
+   * Tarjouspyynnön ehdotusruutu avaa saman lomakkeen esitäytettynä.
    */
   function recordDevice(prefills: DeviceEntryPrefill[]) {
-    const latest = latestDailyLog(dailyLogs);
-    if (latest) openEditLogDialog(latest);
-    else openAddLogDialog();
+    openFocusedAdd('device');
+    if (prefills.length === 0) return;
     const quoteIncluded =
       workReportHasLinkedQuoteRequest(billingQuoteSettings)
       && workReportSupportsQuoteLinkedExtraBilling(billingQuoteSettings);
-    const rows = (prefills.length > 0 ? prefills : [null]).map((prefill) => {
+    const rows = prefills.map((prefill) => {
       const base: ExpenseDraft = {
         ...emptyExpense(),
         expense_type: DEVICE_EXPENSE_TYPE,
-        description: prefill?.description ?? '',
+        description: prefill.description ?? '',
         qty: '1',
-        unit_price: prefill?.unitPrice != null && prefill.unitPrice > 0 ? String(prefill.unitPrice) : '',
+        unit_price: prefill.unitPrice != null && prefill.unitPrice > 0 ? String(prefill.unitPrice) : '',
       };
       // Tarjoukseen kuuluva laite: kuuluu urakkaan (vaihdettavissa lomakkeella).
       return quoteIncluded
         ? applyExpenseBillingMode(base, 'included_in_contract')
         : syncExpenseCustomerPriceFromPartner(base);
     });
-    setExpenseDrafts((current) => [...current, ...rows]);
-    if (!latest) {
-      setLogForm((current) => ({
-        ...current,
-        work_done: current.work_done.trim()
-          ? current.work_done
-          : prefills[0]?.description
-            ? `Laite: ${prefills[0].description}`
-            : 'Laitteen hankinta',
-      }));
-    }
+    setExpenseDrafts(rows);
     setLogDialogPreset({ sectionKey: 'device', expenseKey: rows[0].key });
   }
 
   /** "+ Lisää työ / kulu / tarvike": kohdistettu lisäys, päivä oletuksena tänään. */
-  function openFocusedAdd(kind: 'work' | 'expenses' | 'materials') {
+  function openFocusedAdd(kind: 'work' | 'expenses' | 'materials' | 'device') {
     openAddLogDialog();
     // Lisäysnapista ei esitäytetä tarjouksen rivejä (ne luodaan erikseen tarjouksen kohdistuksessa).
     setOfferedQuoteRows([]);
@@ -3093,7 +3005,13 @@ export default function WorkReportDetailPage({ session }: Props) {
   /** Urakkatyössä uusi päivä on oletuksena urakkapäivä ilman hintaa (tunnit vain kalenteriin). */
   function newLogFormForReport(): DailyLogFormState {
     const base = initialLogForm();
-    return dailyLogs.some((log) => log.entry_type === 'fixed_price') ? { ...base, entry_type: 'fixed_price' } : base;
+    const urakka = dailyLogs.some((log) => log.entry_type === 'fixed_price');
+    const warranty = reportWarrantyOn(dailyLogs);
+    return {
+      ...base,
+      ...(urakka ? { entry_type: 'fixed_price' as DailyHourEntryType, partner_urakka_all_in: true } : {}),
+      ...(warranty ? { partner_warranty: true, partner_trips_warranty: true } : {}),
+    };
   }
 
   /** Urakkaraportin lisälaskutus: tavallinen tuntikirjaus, laskutetaan urakan päälle omana osionaan. */
@@ -3233,6 +3151,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       return;
     }
 
+    if (payload.entry_type !== 'fixed_price') await moveUrakkaPriceFromLog(editingLogId);
     const { error: updateError } = await supabase
       .from('work_report_daily_logs')
       .update(payload)
@@ -3342,6 +3261,72 @@ export default function WorkReportDetailPage({ session }: Props) {
     navigate('/tyoraportit');
   }
 
+  /** Urakka / Takuu koko raportille: päivittää kaikkien kirjausten liput kerralla. */
+  async function applyReportFlagUpdates(updates: LogPatch[]) {
+    if (!report || updates.length === 0) return;
+    setUrakkaBusy(true);
+    setUrakkaError(null);
+    for (const { id, patch } of updates) {
+      const next = { ...patch };
+      if (!isPartnerBillingColumnSupported()) delete next.partner_billing;
+      const { error: updateError } = await supabase.from('work_report_daily_logs').update(next).eq('id', id);
+      if (updateError) {
+        setUrakkaBusy(false);
+        setUrakkaError(updateError.message);
+        return;
+      }
+    }
+    await persistBillingAfterLogChange(report);
+    await load(report.id);
+    setUrakkaBusy(false);
+  }
+
+  /** Koko raportin urakkahinta → kantajakirjaukselle; muiden urakkakirjausten oma hinta tyhjennetään. */
+  async function saveReportUrakka(input: UrakkaReportPriceInput) {
+    if (!report) return;
+    const summary = summarizeReportUrakka(dailyLogs);
+    if (!summary.carrierId) return;
+    setUrakkaBusy(true);
+    setUrakkaError(null);
+    const patch = buildUrakkaReportPatch(input, { keepCustomerPrice: !isPartnerReport });
+    const { error: carrierError } = await supabase
+      .from('work_report_daily_logs')
+      .update(patch)
+      .eq('id', summary.carrierId);
+    if (carrierError) {
+      setUrakkaBusy(false);
+      setUrakkaError(carrierError.message);
+      return;
+    }
+    const clearIds = urakkaLogsToClear(dailyLogs, summary.carrierId);
+    if (clearIds.length > 0) {
+      const { error: clearError } = await supabase
+        .from('work_report_daily_logs')
+        .update(EMPTY_URAKKA_PRICE_PATCH)
+        .in('id', clearIds);
+      if (clearError) {
+        setUrakkaBusy(false);
+        setUrakkaError(clearError.message);
+        return;
+      }
+    }
+    await persistBillingAfterLogChange(report);
+    await load(report.id);
+    setUrakkaBusy(false);
+    setSectionDialog(null);
+  }
+
+  /** Kun hinnan kantaja poistetaan tai se ei ole enää urakka, hinta siirtyy raportin toiselle urakkakirjaukselle. */
+  async function moveUrakkaPriceFromLog(logId: string) {
+    const log = dailyLogs.find((entry) => entry.id === logId);
+    if (!log || log.entry_type !== 'fixed_price') return;
+    const patch = urakkaPricePatchFromLog(log);
+    if (!patch) return;
+    const target = urakkaLogsSorted([...dailyLogs]).find((entry) => entry.id !== logId);
+    if (!target) return;
+    await supabase.from('work_report_daily_logs').update(patch).eq('id', target.id);
+  }
+
   async function deleteDailyLog(logId: string) {
     if (!report) return;
     const log = dailyLogs.find((l) => l.id === logId);
@@ -3351,6 +3336,7 @@ export default function WorkReportDetailPage({ session }: Props) {
     if (log?.images?.length) {
       await supabase.storage.from(BUCKET).remove(log.images.map((img) => img.storage_path));
     }
+    await moveUrakkaPriceFromLog(logId);
     await supabase.from('work_report_daily_logs').delete().eq('id', logId);
     await persistBillingAfterLogChange(report);
     await load(report.id);
@@ -3523,6 +3509,14 @@ export default function WorkReportDetailPage({ session }: Props) {
       : 'Linkitetty tarjouspyyntö');
   const partnerTileBillingCtx = partnerBillingContext(dailyLogs);
   const reportHasUrakka = dailyLogs.some((log) => log.entry_type === 'fixed_price');
+  const reportUrakka = summarizeReportUrakka(dailyLogs);
+  const reportWarranty = reportWarrantyOn(dailyLogs);
+  const showUrakkaTile = !portalReadOnly && canEditDailyLogs && dailyLogs.length > 0;
+  const urakkaTilePrice = reportUrakka.partnerTotal > 0 ? reportUrakka.partnerTotal : (reportUrakka.customerTotal ?? 0);
+  const urakkaTileSubtitle = [
+    reportHasUrakka ? (urakkaTilePrice > 0 ? `Urakka ${formatEuro(urakkaTilePrice)}` : 'Urakka · aseta hinta') : null,
+    reportWarranty ? 'Takuu' : null,
+  ].filter(Boolean).join(' · ') || 'Ei urakkaa eikä takuuta';
   const dailyLogEntryTiles = dailyLogs.flatMap((log) =>
     buildDailyLogEntryTiles(log, {
       formatDate,
@@ -3586,10 +3580,6 @@ export default function WorkReportDetailPage({ session }: Props) {
             subtitle: 'hinta puuttuu',
           }))
       : [];
-  const addDeviceTile: DailyLogEntryTileDescriptor | null =
-    canAddDailyLogs && dailyLogs.length > 0 && !hasLoggedDevice && !quoteDeviceTile
-      ? { key: 'add-device', kind: 'device', logId: '', variant: 'add', title: '+ Laite', subtitle: '' }
-      : null;
   const canDeleteReport =
     !portalReadOnly && canDeleteWorkReport(report, session.user.id, profile?.is_global_admin, profile?.role);
   const displayPeople = resolveWorkReportDisplayPeople(report, { hideAssignee: hideAssigneeFromViewer });
@@ -3867,6 +3857,15 @@ export default function WorkReportDetailPage({ session }: Props) {
             onClick={() => void reportQuoteLinker.openPicker()}
           />
         ) : null}
+        {showUrakkaTile ? (
+          <WorkReportSectionTile
+            title="Urakka ja takuu"
+            subtitle={urakkaTileSubtitle}
+            color="#0d9488"
+            incomplete={reportHasUrakka && reportUrakka.partnerTotal <= 0 && (reportUrakka.customerTotal ?? 0) <= 0}
+            onClick={() => setSectionDialog('urakka')}
+          />
+        ) : null}
         {showPartnerBillableSection && billableCalculation && partnerBillableAmounts ? (
           <WorkReportSectionTile
             title={showOutgoingPartnerBilling ? 'Kumppanille laskutettava' : 'Kumppanilta laskutettava'}
@@ -3947,6 +3946,9 @@ export default function WorkReportDetailPage({ session }: Props) {
             <button type="button" className="btn btn-secondary work-report-add-log-btn" onClick={() => openFocusedAdd('materials')}>
               + Lisää tarvike tai varaosa
             </button>
+            <button type="button" className="btn btn-secondary work-report-add-log-btn" onClick={() => openFocusedAdd('device')}>
+              + Lisää laite
+            </button>
             {reportHasUrakka ? (
               <button type="button" className="btn btn-secondary work-report-add-log-btn" onClick={openExtraBillingAdd}>
                 + Lisälaskutus
@@ -3998,9 +4000,6 @@ export default function WorkReportDetailPage({ session }: Props) {
                 )
               }
             />
-          ) : null}
-          {addDeviceTile ? (
-            <DailyLogEntryTile descriptor={addDeviceTile} onClick={() => recordDevice([])} />
           ) : null}
         </DailyLogEntryTileGrid>
       ) : null}
@@ -4223,16 +4222,21 @@ export default function WorkReportDetailPage({ session }: Props) {
                 <WorkReportEquipmentAssign
                   equipment={customerEquipment}
                   selectedIds={equipmentIdsDraft}
-                  disabled={descriptionBusy}
-                  busy={descriptionBusy}
-                  onChange={setEquipmentIdsDraft}
+                  disabled={descriptionBusy || equipmentBusy}
+                  busy={descriptionBusy || equipmentBusy}
+                  onChange={(ids) => void persistEquipmentSelection(ids)}
                   onCreate={async (draft) => {
                     await createEquipmentForReport(draft);
                   }}
                 />
+                {equipmentNotice ? (
+                  <p className="muted" role="status" style={{ margin: 0 }}>
+                    {equipmentNotice}
+                  </p>
+                ) : null}
                 {equipmentDirty ? (
                   <p className="muted" style={{ margin: 0 }}>
-                    Laitekohdistus muuttunut — tallenna perustiedot alla.
+                    Laitekohdistus tallentuu asiakkaan vaihdon yhteydessä — tallenna perustiedot alla.
                   </p>
                 ) : null}
               </div>
@@ -4496,6 +4500,29 @@ export default function WorkReportDetailPage({ session }: Props) {
           </button>
         </div>
       </WorkReportSectionDialog>
+
+      {showUrakkaTile ? (
+        <WorkReportSectionDialog
+          open={sectionDialog === 'urakka'}
+          title="Urakka ja takuu"
+          onClose={() => setSectionDialog(null)}
+        >
+          {sectionDialog === 'urakka' ? (
+            <WorkReportUrakkaPanel
+              key={`${reportUrakka.hasUrakka}-${reportUrakka.carrierId}-${reportUrakka.mode}-${reportUrakka.partnerTotal}-${reportUrakka.customerTotal}-${reportWarranty}`}
+              summary={reportUrakka}
+              showCustomerPrice={!isPartnerReport}
+              busy={urakkaBusy}
+              warrantyOn={reportWarranty}
+              showWarranty={isPartnerBillingColumnSupported()}
+              onSave={(input) => void saveReportUrakka(input)}
+              onToggleUrakka={(on) => void applyReportFlagUpdates(buildUrakkaToggleUpdates(dailyLogs, on))}
+              onToggleWarranty={(on) => void applyReportFlagUpdates(buildWarrantyToggleUpdates(dailyLogs, on))}
+            />
+          ) : null}
+          {urakkaError ? <p className="error">{urakkaError}</p> : null}
+        </WorkReportSectionDialog>
+      ) : null}
 
       {showPartnerBillableSection && billableCalculation ? (
         <WorkReportSectionDialog

@@ -491,13 +491,8 @@ export default function WorkReportBillingQuotePanel({
       && deviceDraft == null
       && !deviceSettingsOpen
     ) {
-      return (
-        <p className="muted billing-device-seller-toggle">
-          <button type="button" className="btn-link" onClick={() => setDeviceSettingsOpen(true)}>
-            Tilaaja myy laitteen…
-          </button>
-        </p>
-      );
+      // Ei erillistä "Tilaaja myy laitteen…" -nappia: ketju avautuu itse, kun tarjouksessa on laitteen myyntihinta.
+      return null;
     }
     const contractorChoices = [...contractorOptions];
     if (
