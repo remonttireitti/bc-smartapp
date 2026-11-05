@@ -1,4 +1,12 @@
 import { deviceEntryCostSplit, effectiveQuoteDeviceActualNet } from './workReportDeviceEntries';
+import { materialPurchaseTotal } from './quoteRequest/calculations';
+import { filterInstallationSupplyRows } from './quoteRequest/installationSupplies';
+import { isKmCompensationMaterial } from './quoteInstallationComparison';
+import {
+  expenseBillingModeShortLabel,
+  expensePurchaseLineTotal,
+  resolveExpenseBillingMode,
+} from './workReportExpenseBilling';
 import type { PartnerBillingRates } from './management';
 import type { BillingQuotePurchaseLine } from './quotePurchaseLines';
 import {
@@ -10,9 +18,20 @@ import { installationVehiclePurchaseNet } from './quoteRequest/installationSuppl
 import { quoteScopePartnerCalculation, type BillableCalculation } from './workReportBilling';
 import type { BillingQuoteSettings } from './workReportBillingQuote';
 import type { WorkReportDailyLog } from '../types';
-import { categoryReclassification } from './workReportEntryCategories';
+import { categoryReclassification, classifyExpenseLineCategory } from './workReportEntryCategories';
 
 export type QuoteCategoryKey = 'labor' | 'supplies' | 'expenses' | 'device';
+
+/** Kulut-rivin osa: ajot, majoitus, huoltoautokorvaus ja muut kulut eroteltuna. */
+export type QuoteCategoryPart = {
+  key: 'travel' | 'accommodation' | 'vehicle' | 'other';
+  label: string;
+  quoteQty: number | null;
+  actualQty: number | null;
+  quoteNet: number;
+  actualNet: number;
+  note?: string | null;
+};
 
 export type QuoteCategoryRow = {
   key: QuoteCategoryKey;
@@ -24,6 +43,8 @@ export type QuoteCategoryRow = {
   varianceNet: number;
   /** Lyhyt selite tarjousarviolle (esim. "sis. huoltoautokorvaus 50 €"). */
   quoteNote?: string | null;
+  /** Kulut-rivin erittely (vain kun rivillä on muutakin kuin ajoja). Σ osat = rivin summa. */
+  parts?: QuoteCategoryPart[];
 };
 
 export type QuoteCategoryComparison = {
@@ -71,6 +92,23 @@ function rowFromInstallation(
   };
 }
 
+const ACCOMMODATION_PATTERN = /majoit|hotell?i|yöpy|yöpym|asuntola|motelli|hostel/i;
+
+export function isAccommodationName(name: string | null | undefined): boolean {
+  return ACCOMMODATION_PATTERN.test(String(name ?? ''));
+}
+
+/** Majoituksen laskutustila lyhyesti: oma kulu + miten se menee kumppanille. */
+function accommodationBillingNote(lines: Array<{ bill_to_partner?: boolean; bill_to_customer?: boolean }>): string | null {
+  if (lines.length === 0) return null;
+  const modes = new Set(lines.map((line) => resolveExpenseBillingMode(line)));
+  if (modes.size > 1) return 'oma kulu · laskutustapa vaihtelee';
+  const [mode] = [...modes];
+  if (mode === 'customer_only') return expenseBillingModeShortLabel(mode);
+  if (mode === 'partner_and_customer') return 'oma kulu · laskutetaan kumppanilta';
+  return 'oma kulu · ei laskuteta kumppanilta';
+}
+
 function sumPurchaseLines(
   lines: BillingQuotePurchaseLine[],
   field: 'quote_purchase_net' | 'actual_purchase_net',
@@ -100,6 +138,113 @@ function buildCategoryRow(
     actualNet: roundMoney(actualNet),
     varianceNet: roundMoney(actualNet - quoteNet),
   };
+}
+
+function buildExpenseParts(input: {
+  quoteData: unknown;
+  installation: InstallationComparison | null;
+  logs: WorkReportDailyLog[];
+  expensesQuoteNet: number;
+  expensesActualNet: number;
+  vehicleQuote: number;
+}): QuoteCategoryPart[] | undefined {
+  const quote = normalizeQuoteRequestData(input.quoteData);
+  const byKey = new Map((input.installation?.rows ?? []).map((row) => [row.key, row]));
+  const travelRow = byKey.get('travel');
+  const travelKmRow = byKey.get('travel_km');
+
+  // Tarjous: Kulu-rivit nimen mukaan (Km-korvaus = ajot, Majoitus, muut).
+  const quoteExpenseRows = filterInstallationSupplyRows(quote.installationSupplies, 'expense');
+  let quoteAccommodation = 0;
+  let quoteOther = 0;
+  for (const row of quoteExpenseRows) {
+    const net = materialPurchaseTotal([row]);
+    if (isKmCompensationMaterial(row.name)) continue;
+    if (isAccommodationName(row.name)) quoteAccommodation += net;
+    else quoteOther += net;
+  }
+  quoteAccommodation = roundMoney(quoteAccommodation);
+  quoteOther = roundMoney(quoteOther);
+  const quoteTravel = roundMoney(
+    (travelRow?.quoteCostNet ?? 0) - quoteAccommodation - quoteOther,
+  );
+
+  // Toteutunut: päiväkirjan kulurivit (ei ajot) kategoriassa Kulut.
+  let actualAccommodation = 0;
+  const accommodationLines: Array<{ bill_to_partner?: boolean; bill_to_customer?: boolean }> = [];
+  for (const log of input.logs) {
+    for (const line of log.expense_lines ?? []) {
+      if (!isAccommodationName(line.description)) continue;
+      if (classifyExpenseLineCategory(line) !== 'expenses') continue;
+      if (line.expense_type === 'km' || /^Ajomatkat\s*\(/i.test(String(line.description ?? '').trim())) continue;
+      const mode = resolveExpenseBillingMode(line);
+      const cost = mode === 'customer_only'
+        ? expensePurchaseLineTotal(line)
+        : (Number(line.qty) || 0) * (Number(line.unit_price) || 0);
+      actualAccommodation += cost;
+      accommodationLines.push(line);
+    }
+  }
+  const actualTravel = roundMoney(travelRow?.actualCostNet ?? 0);
+  actualAccommodation = roundMoney(
+    Math.min(actualAccommodation, Math.max(0, input.expensesActualNet - actualTravel)),
+  );
+  const actualOther = roundMoney(input.expensesActualNet - actualTravel - actualAccommodation);
+  if (actualOther < -0.005) return undefined;
+
+  const parts: QuoteCategoryPart[] = [];
+  const hasTravel = quoteTravel > 0.005 || actualTravel > 0.005
+    || travelKmRow?.quoteQty != null || travelKmRow?.actualQty != null;
+  if (hasTravel) {
+    parts.push({
+      key: 'travel',
+      label: 'Ajokilometrit',
+      quoteQty: travelKmRow?.quoteQty ?? null,
+      actualQty: travelKmRow?.actualQty ?? null,
+      quoteNet: quoteTravel,
+      actualNet: actualTravel,
+    });
+  }
+  if (quoteAccommodation > 0.005 || actualAccommodation > 0.005) {
+    parts.push({
+      key: 'accommodation',
+      label: 'Majoitus',
+      quoteQty: null,
+      actualQty: null,
+      quoteNet: quoteAccommodation,
+      actualNet: actualAccommodation,
+      note: accommodationBillingNote(accommodationLines),
+    });
+  }
+  if (input.vehicleQuote > 0.005) {
+    parts.push({
+      key: 'vehicle',
+      label: 'Huoltoautokorvaus',
+      quoteQty: null,
+      actualQty: null,
+      quoteNet: input.vehicleQuote,
+      actualNet: 0,
+      note: 'vain tarjouksessa, ei toteumakirjausta',
+    });
+  }
+  if (quoteOther > 0.005 || actualOther > 0.005) {
+    parts.push({
+      key: 'other',
+      label: 'Muut kulut',
+      quoteQty: null,
+      actualQty: null,
+      quoteNet: quoteOther,
+      actualNet: actualOther,
+    });
+  }
+  if (parts.length < 2) return undefined;
+  // Erittely täsmää aina riviin; muuten ei näytetä (turvaverkko).
+  const quoteSum = roundMoney(parts.reduce((sum, part) => sum + part.quoteNet, 0));
+  const actualSum = roundMoney(parts.reduce((sum, part) => sum + part.actualNet, 0));
+  if (Math.abs(quoteSum - input.expensesQuoteNet) > 0.01 || Math.abs(actualSum - input.expensesActualNet) > 0.01) {
+    return undefined;
+  }
+  return parts;
 }
 
 /**
@@ -162,6 +307,16 @@ export function compareQuoteCategories(input: {
   // vertaillaan Kulut-kategoriassa toteutuneisiin ajoihin.
   const vehicleQuote = roundMoney(installationVehiclePurchaseNet(normalizeQuoteRequestData(input.quoteData)));
 
+  const expensesQuoteNet = roundMoney(expenses.quoteNet + vehicleQuote);
+  const parts = buildExpenseParts({
+    quoteData: input.quoteData,
+    installation,
+    logs: input.logs,
+    expensesQuoteNet,
+    expensesActualNet: expensesActual,
+    vehicleQuote,
+  });
+
   const rows: QuoteCategoryRow[] = [
     buildCategoryRow('labor', 'Työt', labor.quoteQty, labor.actualQty, labor.quoteNet, labor.actualNet),
     buildCategoryRow(
@@ -185,6 +340,7 @@ export function compareQuoteCategories(input: {
         vehicleQuote > 0.005
           ? `sis. huoltoautokorvaus ${vehicleQuote.toFixed(2).replace('.', ',')} €`
           : null,
+      ...(parts ? { parts } : {}),
     },
     buildCategoryRow('device', 'Laite', null, null, deviceQuote, deviceActual),
   ].filter(

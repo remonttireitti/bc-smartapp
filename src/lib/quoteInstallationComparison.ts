@@ -79,10 +79,8 @@ export function quoteTravelKm(data: QuoteRequestData): number {
       (row) => resolveQuoteMaterialRowKind(row) !== 'labor',
     ),
   );
-  const fromExpenseRows = (data.installationSupplies ?? [])
-    .filter((row) => resolveQuoteMaterialRowKind(row) === 'expense' && isKmCompensationMaterial(row.name))
-    .reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
-  return roundQty(fromWorkItems + fromTopLevel + fromInstallation + fromExpenseRows);
+  // fromInstallation sisältää jo Kulu-tyyppiset Km-korvaus-rivit — ei lasketa toista kertaa.
+  return roundQty(fromWorkItems + fromTopLevel + fromInstallation);
 }
 
 /** Tarjouksen työ- ja ajobudjetti kumppanihinnoilla (vertailukelpoinen työraportin laskentaan). */
@@ -108,7 +106,13 @@ export function computeQuoteInstallationBudget(
   const laborCost = roundMoney(hours * laborRate + laborRowCost);
   const travelKm = quoteTravelKm(quote);
   const expenseRowCost = installationSuppliesExpensePurchaseNet(quote.installationSupplies);
-  const travelCost = roundMoney(travelKm * tripKmRate + expenseRowCost);
+  // Tarjouksen Km-korvaus-rivit on jo hinnoiteltu omalla hankintahinnallaan (expenseRowCost):
+  // vain muut kilometrit hinnoitellaan kumppanin km-hinnalla, ettei sama km tule kahdesti.
+  const kmInSupplyRows = quoteKmFromMaterials(
+    (quote.installationSupplies ?? []).filter((row) => resolveQuoteMaterialRowKind(row) === 'expense'),
+  );
+  const kmAtRate = Math.max(0, roundQty(travelKm - kmInSupplyRows));
+  const travelCost = roundMoney(kmAtRate * tripKmRate + expenseRowCost);
 
   const rows: InstallationComparisonRow[] = [
     {
