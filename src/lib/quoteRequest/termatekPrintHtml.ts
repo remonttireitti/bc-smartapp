@@ -1,3 +1,4 @@
+import { withInternalPrintFileNameSuffix } from '../printDocumentShell';
 import type { BrandDeliveryFeeByCategoryMap } from '../../data/devicePricingShared';
 import { restrainPrintHtml } from '../huoltoRaportti/printShell';
 import type { HeatPumpDevice } from '../../data/pumpDeviceCatalog';
@@ -946,7 +947,7 @@ export function generateTermatekVilpPrintHtml(input: {
 <html lang="fi">
 <head>
   <meta charset="utf-8" />
-  <title>Tarjous # ${esc(offerNo)} – ${esc(customer.name)}</title>
+  <title>${esc(withInternalPrintFileNameSuffix(`Tarjous # ${offerNo} – ${customer.name}`, false))}</title>
   <style>${termatekStyles()}</style>
 </head>
 <body>
@@ -1261,7 +1262,7 @@ function generateTermatekInternalPrintHtmlRaw(input: {
 <html lang="fi">
 <head>
   <meta charset="utf-8" />
-  <title>Sisäinen laskenta # ${esc(offerNo)} – ${esc(customer.name)}</title>
+  <title>${esc(withInternalPrintFileNameSuffix(`Tarjous # ${offerNo} – ${customer.name}`, true))}</title>
   <style>${termatekStyles()}</style>
 </head>
 <body>

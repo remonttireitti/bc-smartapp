@@ -1,3 +1,4 @@
+import { withInternalPrintFileNameSuffix } from '../printDocumentShell';
 import { parseCompanySettings, type CompanySettings } from '../management';
 import { restrainPrintHtml } from '../huoltoRaportti/printShell';
 import { formatCustomerAddressParts } from '../customers';
@@ -1025,7 +1026,7 @@ function generateQuoteOfferPrintHtmlRaw(input: {
 <html lang="fi">
 <head>
   <meta charset="utf-8" />
-  <title>Tarjous – ${esc(customer.name)}</title>
+  <title>${esc(withInternalPrintFileNameSuffix(`Tarjous – ${customer.name}`, mode === 'creator'))}</title>
   <style>${quotePrintStyles()}</style>
 </head>
 <body class="print-${mode}"${typographyAttr}>
@@ -1319,7 +1320,7 @@ function generateQuoteServicePrintHtmlRaw(input: {
 <html lang="fi">
 <head>
   <meta charset="utf-8" />
-  <title>Tarjous – ${esc(customer.name)}</title>
+  <title>${esc(withInternalPrintFileNameSuffix(`Tarjous – ${customer.name}`, mode === 'creator'))}</title>
   <style>${quotePrintStyles()}</style>
 </head>
 <body class="print-${mode}"${typographyAttr}>

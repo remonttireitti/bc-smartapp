@@ -105,11 +105,11 @@ export default function WorkReportPrintPage({ session }: Props) {
   useEffect(() => {
     if (!report) return;
     const previousTitle = document.title;
-    document.title = buildWorkReportPrintTitle(report);
+    document.title = buildWorkReportPrintTitle(report, undefined, { printMode });
     return () => {
       document.title = previousTitle;
     };
-  }, [report]);
+  }, [report, printMode]);
 
   useEffect(() => {
     const host = document.querySelector('.work-report-print-host');
