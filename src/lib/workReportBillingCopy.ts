@@ -349,7 +349,7 @@ export function hasUnbilledPartnerDailyLogsAfterBilling(
   return resolveUnbilledPartnerDailyLogDates(dailyLogs, partnerBilledAt).length > 0;
 }
 
-/** Sulje avoin erä automaattisesti, jos se johtuu yhdestä 35 € minimilaskutuksesta eikä uusia päiviä ole lisätty. */
+/** Sulje avoin erä automaattisesti, jos se johtuu yhdestä PK-huoltoautoflatista eikä uusia päiviä ole lisätty. */
 export function shouldAutoClosePartnerKmMinimumRemainder(
   grandTotal: number,
   billedAmount: number,

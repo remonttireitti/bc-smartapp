@@ -714,7 +714,11 @@ export function formatWorkReportEquipment(equipment: WorkReport['equipment']) {
   return equipment.tag ? `${equipment.tag} — ${equipment.name}` : equipment.name;
 }
 
-const TRIP_KM_MIN_BILLING_EUR = 35;
+/** PK-seutu huoltoautoveloitus (kumppani). Yli 50 km → €/km. */
+const TRIP_KM_MIN_BILLING_PARTNER_EUR = 45;
+/** PK-seutu huoltoautoveloitus (asiakas). */
+const TRIP_KM_MIN_BILLING_CUSTOMER_EUR = 55;
+const TRIP_KM_PER_KM_THRESHOLD = 50;
 
 export function expenseLineTotal(
   line: Pick<DailyExpenseLine, 'expense_type' | 'qty' | 'unit_price' | 'customer_unit_price'>,
@@ -729,7 +733,15 @@ export function expenseLineTotal(
       : Number(line.unit_price);
   if (line.expense_type === 'km' && qty > 0 && unitPrice > 0) {
     const raw = Math.round(qty * unitPrice * 100) / 100;
-    if (raw > 0 && raw < TRIP_KM_MIN_BILLING_EUR) return TRIP_KM_MIN_BILLING_EUR;
+    // Jo tallennettu flatina (1 × huoltoautoveloitus).
+    if (qty === 1) return raw;
+    // Vanha/legacy km-rivi PK-alueella (≤ 50 km): nosta flatiksi.
+    if (qty > 0 && qty <= TRIP_KM_PER_KM_THRESHOLD) {
+      const minBilling = options?.customer
+        ? TRIP_KM_MIN_BILLING_CUSTOMER_EUR
+        : TRIP_KM_MIN_BILLING_PARTNER_EUR;
+      return Math.max(raw, minBilling);
+    }
   }
   return Math.round(qty * unitPrice * 100) / 100;
 }

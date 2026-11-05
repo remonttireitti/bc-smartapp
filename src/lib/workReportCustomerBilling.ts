@@ -18,7 +18,7 @@ import {
   expenseIncludedInCustomerInvoice,
   resolveExpenseCustomerUnitPrice,
 } from './workReportExpenseBilling';
-import { tripKmExpenseBillingLine } from './tripKmExpense';
+import { tripKmExpenseBillingLine, TRIP_PK_FLAT_CUSTOMER_EUR } from './tripKmExpense';
 import type { BillingQuoteExtraCustomerWork } from './billingQuoteExtraWork';
 import type { BillableRatesSource } from './management';
 import {
@@ -213,11 +213,14 @@ export function calculateWorkReportCustomerBillable(input: {
       const priceMissing = customerExpensePriceMissing(expense, expenseQuoteContext);
       const billed =
         expense.expense_type === 'km'
-          ? tripKmExpenseBillingLine({
-              expense_type: 'km',
-              qty: expense.qty,
-              unit_price: unitPrice,
-            })
+          ? tripKmExpenseBillingLine(
+              {
+                expense_type: 'km',
+                qty: expense.qty,
+                unit_price: unitPrice,
+              },
+              { flatEur: TRIP_PK_FLAT_CUSTOMER_EUR },
+            )
           : {
               qty: Number(expense.qty),
               unitPrice,

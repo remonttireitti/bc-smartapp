@@ -100,10 +100,14 @@ export type CompanySettings = {
   tukes_number?: string;
   /** Tarjousten allekirjoittajan nimi (esim. Lämpökatsastus-tuloste). */
   quote_signatory_name?: string;
-  /** Oma kustannus / kumppanille kirjattava km-hinta (€/km). */
+  /** Oma kustannus / kumppanille kirjattava km-hinta (€/km), yli 50 km. */
   trip_km_rate?: number;
-  /** Asiakkaalle laskutettava km-hinta (€/km). */
+  /** Asiakkaalle laskutettava km-hinta (€/km), yli 50 km. */
   trip_km_customer_rate?: number;
+  /** PK-seutu huoltoautoveloitus kumppanilta (€ / kerta), ≤ 50 km. */
+  trip_pk_flat_partner?: number;
+  /** PK-seutu huoltoautoveloitus asiakkaalta (€ / kerta), ≤ 50 km. */
+  trip_pk_flat_customer?: number;
   /** Tarjouspyyntöjen oletusarvot. */
   quotes?: {
     /** Asentajan työn hankintahinta €/h (alv 0) asennustarvikke-laskurissa. */
@@ -375,6 +379,8 @@ export function parseCompanySettings(raw: unknown): CompanySettings {
     ...s,
     trip_km_rate: parseOptionalPositiveNumber(s.trip_km_rate),
     trip_km_customer_rate: parseOptionalPositiveNumber(s.trip_km_customer_rate),
+    trip_pk_flat_partner: parseOptionalPositiveNumber(s.trip_pk_flat_partner),
+    trip_pk_flat_customer: parseOptionalPositiveNumber(s.trip_pk_flat_customer),
     quotes: s.quotes
       ? {
           installation_labor_purchase_rate: parseOptionalPositiveNumber(

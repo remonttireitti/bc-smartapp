@@ -453,10 +453,13 @@ export default function CompanySettingsPage() {
       </section>
 
       <section className="form-section">
-        <h2>Ajomatkat</h2>
+        <h2>Ajomatkat / huoltoauto</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Yli 50 km: €/km. PK-seutu (≤ 50 km): kertaveloitus. Kumppanihinta = mitä sinä laskutat kumppanilta; asiakashinta = mitä kumppani laskuttaa asiakkaalta.
+        </p>
         <div className="line-form-grid">
           <label>
-            Km-korvaus — oma hinta (€/km)
+            Km-korvaus — kumppanilta (€/km, yli 50 km)
             <input
               type="number"
               step="0.01"
@@ -469,11 +472,11 @@ export default function CompanySettingsPage() {
                   trip_km_rate: raw ? Number(raw) : undefined,
                 }));
               }}
-              placeholder="Esim. 0,53"
+              placeholder="Esim. 0,80"
             />
           </label>
           <label>
-            Km-korvaus — asiakkaalle (€/km)
+            Km-korvaus — asiakkaalle (€/km, yli 50 km)
             <input
               type="number"
               step="0.01"
@@ -486,7 +489,41 @@ export default function CompanySettingsPage() {
                   trip_km_customer_rate: raw ? Number(raw) : undefined,
                 }));
               }}
-              placeholder="Esim. 0,80"
+              placeholder="Esim. 1,00"
+            />
+          </label>
+          <label>
+            Huoltoautoveloitus PK — kumppanilta (€)
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={settings.trip_pk_flat_partner ?? ''}
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                setSettings((current) => ({
+                  ...current,
+                  trip_pk_flat_partner: raw ? Number(raw) : undefined,
+                }));
+              }}
+              placeholder="Esim. 45"
+            />
+          </label>
+          <label>
+            Huoltoautoveloitus PK — asiakkaalle (€)
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={settings.trip_pk_flat_customer ?? ''}
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                setSettings((current) => ({
+                  ...current,
+                  trip_pk_flat_customer: raw ? Number(raw) : undefined,
+                }));
+              }}
+              placeholder="Esim. 55"
             />
           </label>
         </div>

@@ -282,6 +282,8 @@ import {
   isLikelyAutoTripKmExpense,
   parseTripKmCustomerRate,
   parseTripKmRate,
+  parseTripPkFlatCustomer,
+  parseTripPkFlatPartner,
   syncTripKmExpenseDrafts,
 } from '../lib/tripKmExpense';
 import {
@@ -1381,6 +1383,8 @@ export default function WorkReportDetailPage({ session }: Props) {
   const [tripKmRate, setTripKmRate] = useState<number | null>(null);
   const [reportTripKmRate, setReportTripKmRate] = useState<number | null>(null);
   const [tripKmCustomerRate, setTripKmCustomerRate] = useState<number | null>(null);
+  const [tripPkFlatPartner, setTripPkFlatPartner] = useState<number | null>(null);
+  const [tripPkFlatCustomer, setTripPkFlatCustomer] = useState<number | null>(null);
   const [refrigerantDeductionBusyId, setRefrigerantDeductionBusyId] = useState<string | null>(null);
   const [refrigerantDrafts, setRefrigerantDrafts] = useState<RefrigerantLineDraft[]>([]);
   const [partnerPurchaseDrafts, setPartnerPurchaseDrafts] = useState<PartnerPurchaseLineDraft[]>([]);
@@ -1446,9 +1450,12 @@ export default function WorkReportDetailPage({ session }: Props) {
   useEffect(() => {
     if (!logDialogOpen) return;
     setExpenseDrafts((current) =>
-      syncTripKmExpenseDrafts(current, tripDrafts, tripKmRate, tripKmCustomerRate),
+      syncTripKmExpenseDrafts(current, tripDrafts, tripKmRate, tripKmCustomerRate, {
+        partnerFlat: tripPkFlatPartner,
+        customerFlat: tripPkFlatCustomer,
+      }),
     );
-  }, [logDialogOpen, tripDrafts, tripKmRate, tripKmCustomerRate]);
+  }, [logDialogOpen, tripDrafts, tripKmRate, tripKmCustomerRate, tripPkFlatPartner, tripPkFlatCustomer]);
 
   useEffect(() => {
     if (id && profile?.company_id) void load(id);
@@ -2654,6 +2661,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       tripDrafts,
       tripKmRate,
       tripKmCustomerRate,
+      { partnerFlat: tripPkFlatPartner, customerFlat: tripPkFlatCustomer },
     );
     const payload = buildLogPayload(logForm, {
       includeAgreedRegular: agreedRegularSupported,
@@ -2721,6 +2729,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       tripDrafts,
       tripKmRate,
       tripKmCustomerRate,
+      { partnerFlat: tripPkFlatPartner, customerFlat: tripPkFlatCustomer },
     );
     const expenseError = await saveExpenseLines(
       logRow.id,
@@ -2833,6 +2842,8 @@ export default function WorkReportDetailPage({ session }: Props) {
     setTripDepartureLabel(departureLabel);
     setTripKmRate(kmRates.kmRate);
     setTripKmCustomerRate(kmRates.customerKmRate);
+    setTripPkFlatPartner(kmRates.partnerFlat);
+    setTripPkFlatCustomer(kmRates.customerFlat);
     await loadTripDestinationOptionsForDialog(report);
 
     if (token !== tripSetupTokenRef.current) return;
@@ -2846,7 +2857,10 @@ export default function WorkReportDetailPage({ session }: Props) {
 
     if (legs.length > 0) {
       setExpenseDrafts((current) =>
-        syncTripKmExpenseDrafts(current, drafts, kmRates.kmRate, kmRates.customerKmRate),
+        syncTripKmExpenseDrafts(current, drafts, kmRates.kmRate, kmRates.customerKmRate, {
+          partnerFlat: kmRates.partnerFlat,
+          customerFlat: kmRates.customerFlat,
+        }),
       );
     }
 
@@ -2871,6 +2885,8 @@ export default function WorkReportDetailPage({ session }: Props) {
     return {
       kmRate: parseTripKmRate(creatorSettings),
       customerKmRate: parseTripKmCustomerRate(ownerSettings),
+      partnerFlat: parseTripPkFlatPartner(creatorSettings),
+      customerFlat: parseTripPkFlatCustomer(ownerSettings),
     };
   }
 
@@ -3060,6 +3076,8 @@ export default function WorkReportDetailPage({ session }: Props) {
       setTripDestinationOptions([]);
       setTripDepartureLabel('');
       setTripKmRate(null);
+      setTripPkFlatPartner(null);
+      setTripPkFlatCustomer(null);
       setTripKmCustomerRate(null);
     }
   }
@@ -3088,6 +3106,8 @@ export default function WorkReportDetailPage({ session }: Props) {
     } else {
       setTripDepartureLabel('');
       setTripKmRate(null);
+      setTripPkFlatPartner(null);
+      setTripPkFlatCustomer(null);
       setTripKmCustomerRate(null);
     }
     void loadRefrigerantContext(drafts.map((d) => d.cylinder_id).filter(Boolean));
@@ -3108,6 +3128,8 @@ export default function WorkReportDetailPage({ session }: Props) {
     setTripDestinationOptions([]);
     setTripDepartureLabel('');
     setTripKmRate(null);
+    setTripPkFlatPartner(null);
+    setTripPkFlatCustomer(null);
     setTripKmCustomerRate(null);
     setRefrigerantDrafts([]);
     setPartnerPurchaseDrafts([]);
@@ -3132,6 +3154,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       tripDrafts,
       tripKmRate,
       tripKmCustomerRate,
+      { partnerFlat: tripPkFlatPartner, customerFlat: tripPkFlatCustomer },
     );
     const payload = buildLogPayload(logForm, {
       includeAgreedRegular: agreedRegularSupported,
@@ -3189,6 +3212,7 @@ export default function WorkReportDetailPage({ session }: Props) {
       tripDrafts,
       tripKmRate,
       tripKmCustomerRate,
+      { partnerFlat: tripPkFlatPartner, customerFlat: tripPkFlatCustomer },
     );
     const expenseError = await saveExpenseLines(
       editingLogId,
