@@ -18351,3 +18351,12 @@ a.device-history-row:hover { background: #f4f7fb; }
 .urakka-report-result dt { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
 .urakka-report-result dd { margin: 0; font-size: 16px; font-weight: 700; }
 .urakka-report-actions .btn { min-height: 48px; font-size: 16px; }
+
+.billing-notional-rate {
+  max-width: 16rem;
+  margin: 0.5rem 0;
+}
+.billing-notional-rate input {
+  min-height: 48px;
+  font-size: 16px;
+}

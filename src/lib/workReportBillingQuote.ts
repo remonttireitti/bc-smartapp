@@ -104,6 +104,11 @@ export type BillingQuoteSettings = {
   installer_bills_supplies?: boolean | null;
   /** Urakoitsijan lasku tilaajalle: laskutustila (summa lasketaan laskelmasta). */
   contractor_invoice?: ContractorInvoiceStatus | null;
+  /**
+   * Urakkaraportti: kuvitteellinen kumppanin tuntihinta (€/h, alv 0 %). Kun asetettu, työn palkasta
+   * (laskutettu − omat kulut) erotetaan työn osuus (tunnit × hinta); loput on myynnin tuottoa.
+   */
+  notional_hourly_rate?: number | null;
 };
 
 export type ContractorInvoiceStatus = {
@@ -375,6 +380,8 @@ export function parseBillingQuoteSettings(raw: unknown): BillingQuoteSettings {
         : null;
   }
   if (record.installer_bills_supplies === true) settings.installer_bills_supplies = true;
+  const notionalRate = num('notional_hourly_rate');
+  if (notionalRate != null && notionalRate > 0) settings.notional_hourly_rate = roundMoney(notionalRate);
   const contractorInvoice = record.contractor_invoice as Record<string, unknown> | null | undefined;
   if (contractorInvoice && typeof contractorInvoice === 'object' && contractorInvoice.status === 'paid') {
     const billed = Number(contractorInvoice.billed_amount);
@@ -869,6 +876,7 @@ export function billingQuoteFromQuoteRow(
   // Luotujen rivien kirjanpito kulkee mukana (uudelleenkohdistus siivoaa vanhan tarjouksen rivit).
   const previousSeeded = parseQuoteSeededRows(options?.previous?.quote_seeded_rows);
   if (previousSeeded) base.quote_seeded_rows = previousSeeded;
+  if (options?.previous?.notional_hourly_rate) base.notional_hourly_rate = options.previous.notional_hourly_rate;
   // Laitemyyjä-ketju säilyy saman tarjouksen päivityksessä.
   if (options?.previous?.quote_request_id === quoteId && options.previous.device_sale_net) {
     base.device_sale_net = options.previous.device_sale_net;
@@ -1011,6 +1019,29 @@ export async function saveBillingQuoteDeviceSeller(
     contractor_company_name: deviceSaleNet != null ? input.contractorCompanyName : null,
     installer_bills_supplies:
       deviceSaleNet != null && input.contractorCompanyId && input.installerBillsSupplies ? true : null,
+  });
+  await saveBillingQuoteSettings(supabase, workReportId, next);
+  return next;
+}
+
+/** Urakkaraportin kuvitteellinen kumppanin tuntihinta (€/h); null poistaa. Muut asetukset säilyvät. */
+export async function saveNotionalHourlyRate(
+  supabase: SupabaseClient,
+  workReportId: string,
+  rate: number | null,
+): Promise<BillingQuoteSettings> {
+  const { data, error } = await supabase
+    .from('work_report_billable')
+    .select('billing_quote')
+    .eq('work_report_id', workReportId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const current = parseBillingQuoteSettings(
+    (data as { billing_quote?: unknown } | null)?.billing_quote ?? {},
+  );
+  const next = normalizeBillingQuoteSettings({
+    ...current,
+    notional_hourly_rate: rate != null && rate > 0 ? roundMoney(rate) : null,
   });
   await saveBillingQuoteSettings(supabase, workReportId, next);
   return next;
