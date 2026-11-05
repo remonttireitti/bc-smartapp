@@ -13,6 +13,7 @@ import type { QuoteCategoryComparison, QuoteCategoryKey, QuoteCategoryPart } fro
 import { formatCategoryQty } from './quoteCategoryComparison';
 import { EXTRAS_DEDUCTION_KEYS, type PartnerMarginComputed } from './workReportBillingQuote';
 import { summarizeReportUrakka, type UrakkaReportLog } from './workReportUrakkaReport';
+import { computeUrakkaMaterialSplit, isUrakkaMaterialLine } from './workReportUrakkaMaterials';
 import {
   computeDeviceSellerChain,
   deviceSellerLabels,
@@ -133,6 +134,20 @@ export type QuoteOutcomeSummary = {
     hourlyNet: number | null;
     /** Kuvitteellinen kumppanin tuntihinta (€/h) tai null. */
     notionalRate: number | null;
+    /**
+     * Tarvikekulut vähennetty asiakashinnasta ENNEN kumppanijakoa (urakka asiakashinnasta):
+     * kumppanilasku = osuus % × (asiakashinta − tarvikkeet). null = ei vähennysrivejä
+     * (suora kumppanihinta tai ei tarjouksen hankintatietoja).
+     */
+    materials: {
+      /** Toteutuneet tarvikekulut (vähennetään jaettavasta summasta). */
+      actualNet: number;
+      /** Tarjouksen tarvikearvio (vähennetään samalla tavalla arviosta). */
+      estimateNet: number;
+      /** Kumppanille jäävä osuus / kumppanilasku arviolla (tarvikearvio vähennettynä). */
+      partnerKeepsEstimateNet: number;
+      partnerBillEstimateNet: number;
+    } | null;
     /** Työn osuus = tunnit × kuvitteellinen tuntihinta (null, kun hintaa ei ole). */
     laborShareNet: number | null;
     /** Myynnin tuotto = palkka − työn osuus (null, kun hintaa ei ole). */
@@ -187,6 +202,10 @@ export type OutcomeUrakka = {
   hours: number;
   /** Kuvitteellinen kumppanin tuntihinta (€/h) tai null. */
   notionalRate: number | null;
+  /** Asiakkaan urakkahinta (alv 0 %), kun urakka on laskettu asiakashinnasta; muuten null. */
+  customerNet: number | null;
+  /** Kumppanilta laskutettava osuus (%), kun urakka on laskettu asiakashinnasta; muuten null. */
+  partnerPercent: number | null;
 };
 
 /** Päiväkirjan toteutuneet työtunnit (myös urakkamerkinnät: normaali + ylityö + päivystys). */
@@ -204,7 +223,7 @@ export function sumReportHours(logs: UrakkaReportLog[]): number {
  * se ei ole laskulla (esim. takuu → 0 €).
  */
 export function resolveOutcomeUrakka(
-  calculation: { byUser: Array<{ lines: Array<{ kind: string; included: boolean; total: number; warranty?: boolean }> }> } | null | undefined,
+  calculation: { byUser: Array<{ lines: Array<{ kind: string; included: boolean; total: number; warranty?: boolean; logId?: string }> }> } | null | undefined,
   logs: UrakkaReportLog[],
   notionalHourlyRate?: number | null,
 ): OutcomeUrakka | null {
@@ -212,7 +231,10 @@ export function resolveOutcomeUrakka(
   let partnerNet = 0;
   for (const user of calculation.byUser) {
     for (const line of user.lines) {
-      if (line.kind === 'fixed_price' && line.included && !line.warranty) partnerNet += line.total;
+      // Synteettinen tarvikevähennysrivi ohitetaan: yhteenveto laskee vähennyksen itse samasta kaavasta.
+      if (line.kind === 'fixed_price' && line.included && !line.warranty && !isUrakkaMaterialLine(line)) {
+        partnerNet += line.total;
+      }
     }
   }
   partnerNet = roundMoney(partnerNet);
@@ -224,6 +246,8 @@ export function resolveOutcomeUrakka(
       urakka.mode === 'from_customer' ? roundMoney(100 - urakka.partnerPercent) : null,
     hours: sumReportHours(logs),
     notionalRate: notionalHourlyRate != null && notionalHourlyRate > 0 ? roundMoney(notionalHourlyRate) : null,
+    customerNet: urakka.mode === 'from_customer' && (urakka.customerTotal ?? 0) > EPS ? urakka.customerTotal : null,
+    partnerPercent: urakka.mode === 'from_customer' ? urakka.partnerPercent : null,
   };
 }
 
@@ -302,7 +326,27 @@ export function buildQuoteOutcomeSummary(input: {
     && input.urakka.partnerNet > EPS
     && !input.deviceSeller
     && (partnerMargin.customerExtrasNet ?? 0) < EPS;
-  const comparison = urakkaMode && input.comparison ? ownCostsComparison(input.comparison) : input.comparison;
+  const ownComparison = urakkaMode && input.comparison ? ownCostsComparison(input.comparison) : input.comparison;
+  // Urakka asiakashinnasta: tarvikkeet vähennetään asiakashinnasta ennen jakoa → eivät ole omia kuluja.
+  const deductMaterials =
+    urakkaMode && !!ownComparison && input.urakka?.customerNet != null && input.urakka.partnerPercent != null;
+  const materialsRow = deductMaterials ? ownComparison?.rows.find((row) => row.key === 'supplies') : undefined;
+  const materialsActualNet = deductMaterials ? roundMoney(Math.max(0, materialsRow?.actualNet ?? 0)) : 0;
+  const materialsEstimateNet = deductMaterials ? roundMoney(Math.max(0, materialsRow?.quoteNet ?? 0)) : 0;
+  const comparison =
+    deductMaterials && ownComparison
+      ? (() => {
+          const rows = ownComparison.rows.filter((row) => row.key !== 'supplies');
+          const quoteTotalNet = roundMoney(rows.reduce((sum, row) => sum + row.quoteNet, 0));
+          const actualTotalNet = roundMoney(rows.reduce((sum, row) => sum + row.actualNet, 0));
+          return { ...ownComparison, rows, quoteTotalNet, actualTotalNet, varianceNet: roundMoney(actualTotalNet - quoteTotalNet) };
+        })()
+      : ownComparison;
+  const split = (materials: number) =>
+    computeUrakkaMaterialSplit(input.urakka?.customerNet ?? 0, input.urakka?.partnerPercent ?? 0, materials);
+  const splitActual = deductMaterials ? split(materialsActualNet) : null;
+  const splitEstimate = deductMaterials ? split(materialsEstimateNet) : null;
+  const splitBase = deductMaterials ? split(0) : null;
   if (!partnerMargin && !comparison) return null;
   const quoteSaleNet = roundMoney(partnerMargin?.quoteSaleNet ?? input.quoteSaleNet ?? 0);
   const customerExtrasNet = roundMoney(partnerMargin?.customerExtrasNet ?? 0);
@@ -399,9 +443,23 @@ export function buildQuoteOutcomeSummary(input: {
   const actualCostsWithProvisional = roundMoney(actualCostsNet + provisionalTotal);
   const costs = comparisonOf(estimateCostsNet, actualCostsWithProvisional, costVarianceTone);
   // Arvioitu kate = tarjoushinta − arvioidut kulut (sama pohja kuin toteutunut kate).
-  const urakkaIncomeNet = urakkaMode && input.urakka ? input.urakka.partnerNet : null;
+  // Kumppanilasku = tallennettu urakkahinta + tarvikevähennyksen muutos (osuus % × tarvikkeet).
+  const urakkaIncomeNet =
+    urakkaMode && input.urakka
+      ? splitActual && splitBase
+        ? roundMoney(input.urakka.partnerNet + (splitActual.partnerBillNet - splitBase.partnerBillNet))
+        : input.urakka.partnerNet
+      : null;
+  const urakkaIncomeEstimateNet =
+    urakkaIncomeNet == null
+      ? null
+      : splitEstimate && splitBase && input.urakka
+        ? roundMoney(input.urakka.partnerNet + (splitEstimate.partnerBillNet - splitBase.partnerBillNet))
+        : urakkaIncomeNet;
   const estimateGrossNet =
-    estimateCostsNet == null ? null : roundMoney((urakkaIncomeNet ?? quoteSaleNet) - estimateCostsNet);
+    estimateCostsNet == null
+      ? null
+      : roundMoney((urakkaIncomeEstimateNet ?? quoteSaleNet) - estimateCostsNet);
   const grossMargin = partnerMargin
     ? comparisonOf(
         estimateGrossNet,
@@ -509,7 +567,9 @@ export function buildQuoteOutcomeSummary(input: {
               notionalRate != null && hours > EPS ? roundMoney(hours * notionalRate) : null;
             return {
               partnerBillNet: urakkaIncomeNet,
-              partnerKeepsNet: roundMoney(quoteSaleNet - urakkaIncomeNet),
+              partnerKeepsNet: splitActual
+                ? roundMoney(splitActual.potNet - urakkaIncomeNet)
+                : roundMoney(quoteSaleNet - urakkaIncomeNet),
               partnerKeepsPercent:
                 input.urakka?.partnerKeepsPercent
                 ?? (quoteSaleNet > EPS ? roundMoney(((quoteSaleNet - urakkaIncomeNet) / quoteSaleNet) * 100) : null),
@@ -517,6 +577,15 @@ export function buildQuoteOutcomeSummary(input: {
               wageNet,
               hourlyNet: hours > EPS ? roundMoney(wageNet / hours) : null,
               notionalRate,
+              materials:
+                splitActual && splitEstimate && urakkaIncomeEstimateNet != null
+                  ? {
+                      actualNet: splitActual.materialsNet,
+                      estimateNet: splitEstimate.materialsNet,
+                      partnerKeepsEstimateNet: roundMoney(splitEstimate.potNet - urakkaIncomeEstimateNet),
+                      partnerBillEstimateNet: urakkaIncomeEstimateNet,
+                    }
+                  : null,
               laborShareNet,
               saleProfitNet: laborShareNet != null ? roundMoney(wageNet - laborShareNet) : null,
             };
@@ -730,11 +799,22 @@ export function buildAccountingStatement(summary: QuoteOutcomeSummary): Accounti
     const u = summary.urakka;
     const pct = u.partnerKeepsPercent != null ? ` (${String(u.partnerKeepsPercent).replace('.', ',')} %)` : '';
     const gross = summary.grossMargin;
+    const m = u.materials;
+    const quoteLine = { ...line('quote', 'Tarjoushinta', summary.quoteSaleNet, summary.quoteSaleNet, marginVarianceTone), varianceNet: null };
+    // Tarvikkeet vähennetään asiakashinnasta ennen jakoa: Tarjoushinta − tarvikkeet = jaettava, josta % kumppanille.
+    const materialsLine: AccountingLine[] = m && (m.actualNet > EPS || m.estimateNet > EPS)
+      ? [line('materials', 'Tarvikkeet', -m.estimateNet, -m.actualNet, marginVarianceTone, 'line', 'vähennetään ennen jakoa')]
+      : [];
     return {
       income: [
-        { ...line('quote', 'Tarjoushinta', summary.quoteSaleNet, summary.quoteSaleNet, marginVarianceTone), varianceNet: null },
-        { ...line('partner_keeps', `Kumppanille jää${pct}`, -u.partnerKeepsNet, -u.partnerKeepsNet, marginVarianceTone), varianceNet: null },
-        { ...line('income_total', 'Laskutettu kumppanilta', u.partnerBillNet, u.partnerBillNet, marginVarianceTone, 'total', 'urakkahinta'), varianceNet: null },
+        quoteLine,
+        ...materialsLine,
+        m
+          ? line('partner_keeps', `Kumppanille jää${pct}`, -m.partnerKeepsEstimateNet, -u.partnerKeepsNet, marginVarianceTone)
+          : { ...line('partner_keeps', `Kumppanille jää${pct}`, -u.partnerKeepsNet, -u.partnerKeepsNet, marginVarianceTone), varianceNet: null },
+        m
+          ? line('income_total', 'Laskutettu kumppanilta', m.partnerBillEstimateNet, u.partnerBillNet, marginVarianceTone, 'total', 'urakkahinta')
+          : { ...line('income_total', 'Laskutettu kumppanilta', u.partnerBillNet, u.partnerBillNet, marginVarianceTone, 'total', 'urakkahinta'), varianceNet: null },
       ],
       costs,
       resultTitle: 'Tulos',
