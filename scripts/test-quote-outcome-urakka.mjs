@@ -1,5 +1,5 @@
 import { compareQuoteCategories } from '../src/lib/quoteCategoryComparison.ts';
-import { calculateWorkReportBillable, formatEuro } from '../src/lib/workReportBilling.ts';
+import { calculateWorkReportBillable, formatEuro, includeUrakkaExpenseLines } from '../src/lib/workReportBilling.ts';
 import { mergeActualPurchaseFromWorkReportLogs } from '../src/lib/quoteRequestActualPurchaseSync.ts';
 import { parseBillingQuoteSettings, computePartnerNetMargin } from '../src/lib/workReportBillingQuote.ts';
 import { resolveOutcomeUrakka, buildQuoteOutcomeSummary, buildAccountingStatement } from '../src/lib/quoteOutcomeSummary.ts';
@@ -34,42 +34,44 @@ const build = (bill, kmQty = null) => {
   const raw = parseBillingQuoteSettings({ quote_request_id: 'q', quote_sale_net: 6560, quote_purchase_net: 4900, actual_purchase_net: 4900, customer_invoice_total: 6560, customer_mode: 'quote_fixed', partner_commission_percent: 0, purchase_lines: extractQuotePurchaseLines(quoteData) });
   const settings = mergeActualPurchaseFromWorkReportLogs(raw, ls, quoteData);
   const pm = computePartnerNetMargin(settings, calc.grandTotal, { logs: ls, partnerRates: calc.ratesUsed, partnerCalculation: calc, quoteData });
-  const cmp = compareQuoteCategories({ quoteData, partnerCalculation: calc, logs: ls, partnerRates: calc.ratesUsed, tripKmRate: 0.53, billingSettings: settings });
+  const cmp = compareQuoteCategories({ quoteData, partnerCalculation: includeUrakkaExpenseLines(calc), logs: ls, partnerRates: calc.ratesUsed, tripKmRate: 0.53, billingSettings: settings });
   const input = { partnerMargin: pm, comparison: cmp, quoteSaleNet: 6560, formatEuro };
   return { calc, ls, input, withUrakka: buildQuoteOutcomeSummary({ ...input, urakka: resolveOutcomeUrakka(calc, ls) }), without: buildQuoteOutcomeSummary(input) };
 };
 
-// Wärtsilä: urakka 90 % × 6560 = 5904, km/majoitus urakan sisällä.
+// Wärtsilä: urakka 90 % × 6560 = 5904 laskutettu kumppanilta, km/majoitus Ennin omia kuluja, tarvikkeita ei tarvittu.
 const a = build(false);
-assert.equal(a.without.verdict.tone, 'worse', 'vanha laskenta: 5904 − 4900 = −1004 (virhe)');
-assert.equal(a.without.verdict.amountNet, -1004);
+assert.equal(a.without.verdict.amountNet, -1004, 'vanha laskenta: 5904 − 4900 = −1004 (virhe)');
 assert.deepEqual(resolveOutcomeUrakka(a.calc, a.ls), { partnerNet: 5904, partnerKeepsPercent: 10 });
 const s = a.withUrakka;
-assert.equal(s.verdict.tone, 'neutral');
-assert.equal(s.verdict.label, 'Meni tarjouspyynnön mukaan');
-assert.equal(s.costs.estimateNet, 5904);
-assert.equal(s.costs.actualNet, 5904);
-assert.equal(s.grossMargin.estimateNet, 656);
-assert.equal(s.grossMargin.actualNet, 656);
+assert.deepEqual(s.urakka, { partnerBillNet: 5904, partnerKeepsNet: 656, partnerKeepsPercent: 10 });
+// Omat kulut: arvio tarvikkeet 750 + ajot 800 + majoitus 500 + huoltoauto 350 = 2400 (työ = palkka, ei kulu); toteutunut 733,68 + 280.
+assert.equal(s.costs.estimateNet, 2400);
+assert.equal(s.costs.actualNet, 1013.68);
+assert.equal(s.grossMargin.estimateNet, 3504);
+assert.equal(s.grossMargin.actualNet, 4890.32);
+assert.equal(s.netMarginNet, 4890.32);
+assert.equal(s.commissionNet, 0);
+assert.equal(s.verdict.tone, 'better');
+assert.equal(s.verdict.amountNet, 1386.32);
 const st = buildAccountingStatement(s);
-assert.deepEqual(st.costs.map((l) => l.label), ['Urakkahinta', 'Kulut yhteensä']);
-assert.match(st.costs[0].sub, /kumppanille jää 10 %/);
-assert.match(st.costs[0].sub, /korvaa tarjouksen kuluarvion 4.?900,00/, 'tarjouksen kuluarvio 4 900 € (työt, tarvikkeet, ajot, majoitus, huoltoauto) näkyy selitteessä');
-assert.ok(!st.costs.some((l) => l.label === 'Muut kate-erät'));
+assert.deepEqual(st.income.map((l) => l.label), ['Tarjoushinta', 'Kumppanille jää (10 %)', 'Laskutettu kumppanilta']);
+assert.equal(st.income[1].actualNet, -656);
+assert.equal(st.income[2].actualNet, 5904);
+assert.deepEqual(st.costs.map((l) => l.label), ['Tarvikkeet', 'Ajokilometrit', 'Majoitus', 'Huoltoautokorvaus', 'Kulut yhteensä']);
+assert.deepEqual(st.costs.find((l) => l.label === 'Tarvikkeet').actualNet, 0, 'käyttämättömät tarvikkeet 0 €, ei huonompi');
+assert.ok(!st.costs.some((l) => /kumppanilta/.test(l.sub ?? '')), 'urakassa kulut ovat omia, ei kumppanilaskuselitettä');
+assert.deepEqual(st.result.map((l) => l.label), ['Puhdas kate']);
+assert.ok(!st.costs.some((l) => l.label === 'Muut kate-erät' || l.label === 'Työt'));
 
-// Km ja majoitus laskutettu urakan päälle: ne vertaillaan tarjoukseen (alle arvion → paremmin).
-const b = build(true);
-assert.equal(b.withUrakka.verdict.tone, 'better');
-assert.equal(b.withUrakka.verdict.amountNet, 286.32);
-assert.deepEqual(buildAccountingStatement(b.withUrakka).costs.map((l) => l.label), ['Ajokilometrit', 'Majoitus', 'Urakkahinta', 'Kulut yhteensä']);
-
-// Urakan päälle laskutetut kulut yli tarjouksen → huonommin (oikea ylitys tunnistetaan).
-const over = build(true, 900);
+// Kulut yli tarjouksen (km 2000 × 2) → huonommin.
+const over = build(false, 2000);
 assert.equal(over.withUrakka.verdict.tone, 'worse');
 assert.ok(over.withUrakka.verdict.amountNet < 0);
 
 // Ei urakkaa → käyttäytyminen ennallaan.
 const plain = buildQuoteOutcomeSummary({ ...a.input, urakka: null });
 assert.equal(plain.verdict.amountNet, -1004);
+assert.equal(plain.urakka, null);
 assert.equal(resolveOutcomeUrakka(null, []), null);
 console.log('quote-outcome-urakka: ok');

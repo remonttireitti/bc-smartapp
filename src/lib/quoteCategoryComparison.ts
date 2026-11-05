@@ -53,8 +53,6 @@ export type QuoteCategoryComparison = {
   quoteTotalNet: number;
   actualTotalNet: number;
   varianceNet: number;
-  /** Kumppanin kiinteä urakkahinta korvaa urakan kattamat rivit (tarjouksen kuluarvio → urakkahinta). */
-  urakka?: { net: number; quoteCoveredNet: number };
 };
 
 function roundMoney(value: number): number {

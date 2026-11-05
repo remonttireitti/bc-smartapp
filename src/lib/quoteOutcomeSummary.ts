@@ -117,6 +117,11 @@ export type QuoteOutcomeSummary = {
    * myynti-, kate- ja provisiorivit; puhdas kate = urakoitsijalle jäävä osuus.
    */
   parties: QuoteOutcomePartyRow[] | null;
+  /**
+   * Urakkaraportti urakoitsijan näkökulmasta: tulo = kumppanilta laskutettu urakkahinta,
+   * kumppanille jää loput asiakashinnasta. null = ei urakkaa (tai lisälaskutus/laitemyyjä-ketju).
+   */
+  urakka: { partnerBillNet: number; partnerKeepsNet: number; partnerKeepsPercent: number | null } | null;
 };
 
 /** Kate-ero poikkeaa kulujen eron vastaluvusta (esim. hyväksytyt lisät) → näytä se taulukossa. */
@@ -190,60 +195,23 @@ export function resolveOutcomeUrakka(
 }
 
 /**
- * Kumppanin kiinteä urakkahinta korvaa tarjouksen kuluarvion niiltä riveiltä, jotka urakka kattaa
- * (toteutunut 0 €, koska ne eivät ole omalla laskullaan): vertailu on urakkahinta vs urakkahinta,
- * eikä tarjouksen sisäinen kuluarvio ole tavoite. Urakan päälle laskutetut rivit (toteutunut > 0)
- * ja laite vertaillaan edelleen tarjoukseen.
+ * Urakkaraportti urakoitsijan (laskuttajan) näkökulmasta: kulut ovat hänen omia kulujaan
+ * (tarvikkeet, ajot, majoitus, huoltoauto, laite) tarjouksen kuluarviota vastaan. Työ on hänen
+ * palkkaansa (ei kulu) → Työt-rivi pois vertailusta molemmista sarakkeista. Tarjouksen tarvikkeet,
+ * joita ei tarvittu (toteutunut 0 €), ovat säästöä, eivät huonompi tulos.
  */
-export function applyUrakkaToComparison(
-  comparison: QuoteCategoryComparison,
-  urakkaNet: number,
-): QuoteCategoryComparison {
-  let coveredQuote = 0;
-  const rows: QuoteCategoryComparison['rows'] = [];
-  for (const row of comparison.rows) {
-    if (row.key === 'device') {
-      rows.push(row);
-      continue;
-    }
-    if (row.parts && row.parts.length > 0) {
-      const keptParts: QuoteCategoryPart[] = [];
-      for (const part of row.parts) {
-        if (part.quoteNet > EPS && part.actualNet < EPS) coveredQuote += part.quoteNet;
-        else if (part.quoteNet > EPS || part.actualNet > EPS) keptParts.push(part);
-      }
-      const quoteNet = roundMoney(keptParts.reduce((sum, part) => sum + part.quoteNet, 0));
-      const actualNet = roundMoney(keptParts.reduce((sum, part) => sum + part.actualNet, 0));
-      if (quoteNet > EPS || actualNet > EPS) {
-        rows.push({
-          ...row,
-          quoteNet,
-          actualNet,
-          varianceNet: roundMoney(actualNet - quoteNet),
-          quoteQty: null,
-          actualQty: null,
-          quoteNote: null,
-          parts: keptParts,
-        });
-      }
-      continue;
-    }
-    if (row.quoteNet > EPS && row.actualNet < EPS) {
-      coveredQuote += row.quoteNet;
-      continue;
-    }
-    rows.push(row);
-  }
-  if (coveredQuote < EPS) return comparison;
-  const quoteTotalNet = roundMoney(rows.reduce((sum, row) => sum + row.quoteNet, 0) + urakkaNet);
-  const actualTotalNet = roundMoney(rows.reduce((sum, row) => sum + row.actualNet, 0) + urakkaNet);
-  return {
-    rows,
-    quoteTotalNet,
-    actualTotalNet,
-    varianceNet: roundMoney(actualTotalNet - quoteTotalNet),
-    urakka: { net: urakkaNet, quoteCoveredNet: roundMoney(coveredQuote) },
-  };
+export function ownCostsComparison(comparison: QuoteCategoryComparison): QuoteCategoryComparison {
+  // Urakassa kulut ovat urakoitsijan omia: ei "laskutetaan / ei laskuteta kumppanilta" -selitettä.
+  const ownNote = (note: string | null | undefined) =>
+    note ? note.replace(/\s*·\s*(laskutetaan|ei laskuteta) kumppanilta/g, '') || null : note;
+  const rows = comparison.rows
+    .filter((row) => row.key !== 'labor')
+    .map((row) =>
+      row.parts ? { ...row, parts: row.parts.map((part) => ({ ...part, note: ownNote(part.note) })) } : row,
+    );
+  const quoteTotalNet = roundMoney(rows.reduce((sum, row) => sum + row.quoteNet, 0));
+  const actualTotalNet = roundMoney(rows.reduce((sum, row) => sum + row.actualNet, 0));
+  return { rows, quoteTotalNet, actualTotalNet, varianceNet: roundMoney(actualTotalNet - quoteTotalNet) };
 }
 
 export function verdictFor(
@@ -288,16 +256,20 @@ export function buildQuoteOutcomeSummary(input: {
    */
   provisionalCosts?: { supplies: number; expenses: number } | null;
   /**
-   * Raportin urakka (kumppanin kiinteä lasku). Urakkahinta korvaa tarjouksen kuluarvion urakan
-   * kattamilta riveiltä, jotta sovittu hinta ei näytä "huonommalta kuin tarjous".
+   * Raportin urakka (kumppanin kiinteä lasku). Tulot = kumppanilta laskutettu urakkahinta
+   * (asiakashinta − kumppanin osuus), kulut = urakoitsijan omat kulut tarjouksen arviota vastaan.
    */
   urakka?: OutcomeUrakka | null;
 }): QuoteOutcomeSummary | null {
   const { partnerMargin, formatEuro } = input;
-  const comparison =
-    input.comparison && partnerMargin && input.urakka && input.urakka.partnerNet > EPS
-      ? applyUrakkaToComparison(input.comparison, input.urakka.partnerNet)
-      : input.comparison;
+  const urakkaMode =
+    !!input.comparison
+    && !!partnerMargin
+    && !!input.urakka
+    && input.urakka.partnerNet > EPS
+    && !input.deviceSeller
+    && (partnerMargin.customerExtrasNet ?? 0) < EPS;
+  const comparison = urakkaMode && input.comparison ? ownCostsComparison(input.comparison) : input.comparison;
   if (!partnerMargin && !comparison) return null;
   const quoteSaleNet = roundMoney(partnerMargin?.quoteSaleNet ?? input.quoteSaleNet ?? 0);
   const customerExtrasNet = roundMoney(partnerMargin?.customerExtrasNet ?? 0);
@@ -306,10 +278,14 @@ export function buildQuoteOutcomeSummary(input: {
   const quoteDeductionRows = (partnerMargin?.deductionRows ?? []).filter(
     (row) => !EXTRAS_DEDUCTION_KEYS.has(row.key),
   );
-  const actualCostsNet = partnerMargin
-    ? roundMoney(quoteDeductionRows.reduce((sum, row) => sum + row.amount, 0))
-    : roundMoney(comparison?.actualTotalNet ?? 0);
-  const extrasMarginNet = partnerMargin
+  const actualCostsNet = urakkaMode
+    ? roundMoney(comparison?.actualTotalNet ?? 0)
+    : partnerMargin
+      ? roundMoney(quoteDeductionRows.reduce((sum, row) => sum + row.amount, 0))
+      : roundMoney(comparison?.actualTotalNet ?? 0);
+  const extrasMarginNet = urakkaMode
+    ? 0
+    : partnerMargin
     ? roundMoney(partnerMargin.grossMarginNet - (quoteSaleNet - actualCostsNet))
     : 0;
 
@@ -323,16 +299,6 @@ export function buildQuoteOutcomeSummary(input: {
         note: row.quoteNote ?? null,
         ...(row.parts ? { parts: row.parts } : {}),
         ...comparisonOf(row.quoteNet, row.actualNet, costVarianceTone),
-      });
-    }
-    if (comparison.urakka) {
-      const covered = comparison.urakka.quoteCoveredNet;
-      rows.push({
-        key: 'other',
-        label: 'Urakkahinta',
-        qtyLabel: null,
-        note: `sovittu kiinteä hinta kumppanille${input.urakka?.partnerKeepsPercent != null ? ` (kumppanille jää ${String(input.urakka.partnerKeepsPercent).replace('.', ',')} %)` : ''} · korvaa tarjouksen kuluarvion ${formatEuro(covered)}`,
-        ...comparisonOf(comparison.urakka.net, comparison.urakka.net, costVarianceTone),
       });
     }
     const otherNet = roundMoney(actualCostsNet - comparison.actualTotalNet);
@@ -400,10 +366,17 @@ export function buildQuoteOutcomeSummary(input: {
   const actualCostsWithProvisional = roundMoney(actualCostsNet + provisionalTotal);
   const costs = comparisonOf(estimateCostsNet, actualCostsWithProvisional, costVarianceTone);
   // Arvioitu kate = tarjoushinta − arvioidut kulut (sama pohja kuin toteutunut kate).
+  const urakkaIncomeNet = urakkaMode && input.urakka ? input.urakka.partnerNet : null;
   const estimateGrossNet =
-    estimateCostsNet == null ? null : roundMoney(quoteSaleNet - estimateCostsNet);
+    estimateCostsNet == null ? null : roundMoney((urakkaIncomeNet ?? quoteSaleNet) - estimateCostsNet);
   const grossMargin = partnerMargin
-    ? comparisonOf(estimateGrossNet, partnerMargin.grossMarginNet - provisionalTotal, marginVarianceTone)
+    ? comparisonOf(
+        estimateGrossNet,
+        urakkaIncomeNet != null
+          ? urakkaIncomeNet - actualCostsWithProvisional
+          : partnerMargin.grossMarginNet - provisionalTotal,
+        marginVarianceTone,
+      )
     : null;
 
   let parties: QuoteOutcomePartyRow[] | null = null;
@@ -481,16 +454,28 @@ export function buildQuoteOutcomeSummary(input: {
     costs,
     grossMargin,
     rows,
-    commissionNet: chain ? 0 : roundMoney(partnerMargin?.commissionNet ?? 0),
+    commissionNet: chain || urakkaMode ? 0 : roundMoney(partnerMargin?.commissionNet ?? 0),
     commissionPercent: partnerMargin?.commissionPercent ?? 0,
     commissionSource: partnerMargin?.commissionSource ?? 'percent',
     netMarginNet: chain
       ? chain.contractorKeeps.actual
+      : urakkaMode && grossMargin
+        ? grossMargin.actualNet
       : roundMoney((partnerMargin?.netMarginNet ?? 0) - provisionalTotal),
     hasMargin: partnerMargin != null,
     verdict: verdictFor(verdictAmount, formatEuro),
     showMarginVariance: marginVarianceDiffersFromCosts(costs, grossMargin),
     parties,
+    urakka:
+      urakkaIncomeNet != null
+        ? {
+            partnerBillNet: urakkaIncomeNet,
+            partnerKeepsNet: roundMoney(quoteSaleNet - urakkaIncomeNet),
+            partnerKeepsPercent:
+              input.urakka?.partnerKeepsPercent
+              ?? (quoteSaleNet > EPS ? roundMoney(((quoteSaleNet - urakkaIncomeNet) / quoteSaleNet) * 100) : null),
+          }
+        : null,
   };
 }
 
@@ -645,6 +630,29 @@ export function buildAccountingStatement(summary: QuoteOutcomeSummary): Accounti
 
   if (!summary.hasMargin || !summary.grossMargin) return { income: null, costs, result: null };
 
+  if (summary.urakka) {
+    const u = summary.urakka;
+    const pct = u.partnerKeepsPercent != null ? ` (${String(u.partnerKeepsPercent).replace('.', ',')} %)` : '';
+    const gross = summary.grossMargin;
+    return {
+      income: [
+        { ...line('quote', 'Tarjoushinta', summary.quoteSaleNet, summary.quoteSaleNet, marginVarianceTone), varianceNet: null },
+        { ...line('partner_keeps', `Kumppanille jää${pct}`, -u.partnerKeepsNet, -u.partnerKeepsNet, marginVarianceTone), varianceNet: null },
+        { ...line('income_total', 'Laskutettu kumppanilta', u.partnerBillNet, u.partnerBillNet, marginVarianceTone, 'total', 'urakkahinta'), varianceNet: null },
+      ],
+      costs,
+      result: [
+        {
+          key: 'gross',
+          label: 'Puhdas kate',
+          sub: 'laskutettu − omat kulut · palkka tulee lisäksi',
+          kind: 'result',
+          ...gross,
+          ...(summary.showMarginVariance ? {} : { varianceNet: null }),
+        },
+      ],
+    };
+  }
   const income: AccountingLine[] = [
     // Tarjoushinta on sama molemmissa sarakkeissa → ei Ero-lukua.
     { ...line('quote', 'Tarjoushinta', summary.quoteSaleNet, summary.quoteSaleNet, marginVarianceTone), varianceNet: null },
