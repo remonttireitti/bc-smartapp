@@ -9,7 +9,7 @@
  * Siksi: kate-ero = −(kulujen ero) + lisälaskutus. Ilman lisälaskutusta kate-ero on täsmälleen
  * kulujen eron vastaluku.
  */
-import type { QuoteCategoryComparison, QuoteCategoryKey } from './quoteCategoryComparison';
+import type { QuoteCategoryComparison, QuoteCategoryKey, QuoteCategoryPart } from './quoteCategoryComparison';
 import { formatCategoryQty } from './quoteCategoryComparison';
 import { EXTRAS_DEDUCTION_KEYS, type PartnerMarginComputed } from './workReportBillingQuote';
 import {
@@ -65,6 +65,8 @@ export type QuoteOutcomeRow = {
   /** Esim. "8 h / 8 h" tai "0 km / 68,3 km". */
   qtyLabel: string | null;
   note: string | null;
+  /** Kulut-rivin erittely (ajot, majoitus, huoltoauto, muut) — näytetään omina riveinään. */
+  parts?: QuoteCategoryPart[];
 } & QuoteOutcomeComparison;
 
 /** Laitemyyjä-ketjun laskutuslaskelman rivi (osapuolittain). */
@@ -143,6 +145,10 @@ function comparisonOf(
   };
 }
 
+function formatKm(value: number): string {
+  return `${value.toLocaleString('fi-FI', { maximumFractionDigits: 2 })} km`;
+}
+
 function qtyLabelFor(row: QuoteCategoryComparison['rows'][number]): string | null {
   if (row.key !== 'labor' && row.key !== 'expenses') return null;
   if (row.quoteQty == null && row.actualQty == null) return null;
@@ -215,6 +221,7 @@ export function buildQuoteOutcomeSummary(input: {
         label: row.label,
         qtyLabel: qtyLabelFor(row),
         note: row.quoteNote ?? null,
+        ...(row.parts ? { parts: row.parts } : {}),
         ...comparisonOf(row.quoteNet, row.actualNet, costVarianceTone),
       });
     }
@@ -478,16 +485,46 @@ export function buildAccountingStatement(summary: QuoteOutcomeSummary): Accounti
   ): AccountingLine => ({ key, label, sub, kind, ...comparisonOf(hasEstimate ? estimate : null, actual, tone) });
 
   const extrasCostNet = roundMoney(summary.customerExtrasNet - summary.extrasMarginNet);
-  const costs: AccountingLine[] = summary.rows.map((row) => ({
-    key: row.key,
-    label: row.label,
-    sub: [row.qtyLabel, row.note].filter(Boolean).join(' · ') || null,
-    kind: 'line' as const,
-    estimateNet: row.estimateNet,
-    actualNet: row.actualNet,
-    varianceNet: row.varianceNet,
-    tone: row.tone,
-  }));
+  const costs: AccountingLine[] = summary.rows.flatMap((row): AccountingLine[] => {
+    if (row.parts && row.parts.length > 1) {
+      // Kulut eroteltuna: ajot, majoitus, huoltoauto ja muut omina riveinään (ei yhteissummariviä).
+      const lines: AccountingLine[] = row.parts.map((part) => {
+        const qty =
+          part.key === 'travel' && (part.quoteQty != null || part.actualQty != null)
+            ? `${formatKm(part.quoteQty ?? 0)} / ${formatKm(part.actualQty ?? 0)}`
+            : null;
+        return {
+          key: `${row.key}:${part.key}`,
+          label: part.label,
+          sub: [qty, part.note].filter(Boolean).join(' · ') || null,
+          kind: 'line' as const,
+          ...comparisonOf(part.quoteNet, part.actualNet, costVarianceTone),
+        };
+      });
+      // Hinnattomat rivit (alustava) tms., jotka eivät ole erittelyssä.
+      const restActual = roundMoney(row.actualNet - row.parts.reduce((sum, part) => sum + part.actualNet, 0));
+      if (Math.abs(restActual) > EPS) {
+        lines.push({
+          key: `${row.key}:rest`,
+          label: 'Hinnattomat rivit',
+          sub: row.note?.includes('alustava') ? 'tarjouspyynnön hinnalla (alustava)' : null,
+          kind: 'line' as const,
+          ...comparisonOf(0, restActual, costVarianceTone),
+        });
+      }
+      return lines;
+    }
+    return [{
+      key: row.key,
+      label: row.label,
+      sub: [row.qtyLabel, row.note].filter(Boolean).join(' · ') || null,
+      kind: 'line' as const,
+      estimateNet: row.estimateNet,
+      actualNet: row.actualNet,
+      varianceNet: row.varianceNet,
+      tone: row.tone,
+    }];
+  });
   if (summary.hasMargin && Math.abs(extrasCostNet) > EPS) {
     costs.push(line('extras_costs', 'Lisätöiden kulut', 0, extrasCostNet, costVarianceTone));
   }
