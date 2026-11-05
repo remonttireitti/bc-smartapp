@@ -46,13 +46,7 @@ export function tripDistancePlugin(): Plugin {
             return;
           }
 
-          const apiKey = process.env.OPENROUTESERVICE_API_KEY?.trim();
-          if (!apiKey) {
-            sendJson(res, 500, {
-              error: 'OPENROUTESERVICE_API_KEY puuttuu .env-tiedostosta (dev-reittilaskenta).',
-            });
-            return;
-          }
+          const apiKey = process.env.OPENROUTESERVICE_API_KEY?.trim() ?? '';
 
           const { url, anonKey } = getSupabaseKeys();
           if (!anonKey) {
