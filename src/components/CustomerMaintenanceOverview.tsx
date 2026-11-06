@@ -106,12 +106,6 @@ export default function CustomerMaintenanceOverview({
       collapseKey={portal ? 'portal-customer:maintenance-overview' : 'customer:maintenance-overview'}
       defaultOpen
     >
-      <p className="muted maintenance-overview-lead">
-        {portal
-          ? 'Valmiit pöytäkirjat vuosittain. Kevät- ja syyshuolto näkyvät vain, kun pöytäkirjaan on merkitty kausi.'
-          : 'Kevät- ja syyshuolto näkyvät vain pöytäkirjoissa, joihin kausi on merkitty. Korjaus ilman kautta ei ole kausihuolto.'}
-      </p>
-
       {groups.map((group) => (
         <section key={yearLabel(group.year)} className="maintenance-year">
           <h3>{yearLabel(group.year)}</h3>
