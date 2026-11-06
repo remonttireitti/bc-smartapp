@@ -1,4 +1,5 @@
 import { OPEN_DRAFT_FLASH, findOpenDraftForEquipment } from '../lib/huoltoRaportti/openDraftGuard';
+import { maintenanceSeasonFromSearch, readExplicitMaintenanceSeason } from '../lib/maintenanceSeasonOverview';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { emitDataChanged } from '../lib/dataRefresh';
@@ -703,10 +704,10 @@ export default function MaintenanceReportEditPage({ session }: Props) {
   }, [profile?.company_id]);
 
   useEffect(() => {
-    if (isNew || !id) return;
+    if (isNew || !id || profileLoading) return;
     if (loadedReportIdRef.current === id) return;
     void loadReport(id);
-  }, [id, isNew]);
+  }, [id, isNew, profileLoading]);
 
   useEffect(() => {
     if (!reportReady || loadingReport) return;
@@ -789,7 +790,11 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     if (reportIdRef.current) return;
     if (cid) setCustomerId(cid);
     if (eid) setEquipmentId(eid);
-  }, [isNew, ownerCompanyId, searchParams]);
+    const season = maintenanceSeasonFromSearch(searchParams);
+    if (season) {
+      syncForm({ huoltokausi: season.season, huoltokausiVuosi: season.year });
+    }
+  }, [isNew, ownerCompanyId, searchParams, syncForm]);
 
   /** Uusi huolto laitteelta: jatka laitteen olemassa olevaa luonnosta uuden luomisen sijaan. */
   const existingDraftCheckedRef = useRef(false);
@@ -799,8 +804,9 @@ export default function MaintenanceReportEditPage({ session }: Props) {
     const eid = searchParams.get('equipmentId');
     if (!eid) return;
     existingDraftCheckedRef.current = true;
+    const season = maintenanceSeasonFromSearch(searchParams);
     void (async () => {
-      const draftId = await findOpenDraftForEquipment(supabase, eid);
+      const draftId = await findOpenDraftForEquipment(supabase, eid, null, season);
       if (draftId) navigate(`/huoltoraportit/${draftId}`, { replace: true });
     })();
   }, [isNew, ownerCompanyId, searchParams, navigate]);
@@ -971,6 +977,13 @@ export default function MaintenanceReportEditPage({ session }: Props) {
       subscriber_portal_visibility: SubscriberPortalVisibility | null;
       assigned_user_id: string | null;
     };
+
+    if (portalMode && !isMaintenanceReportPublished(row.status)) {
+      loadedReportIdRef.current = reportIdToLoad;
+      setLoadingReport(false);
+      navigate('/huoltoraportit', { replace: true });
+      return;
+    }
 
     const normalized = normalizeHuoltoReportData({ ...createEmptyHuoltoReportData(), ...row.data });
     const sessionEditor =
@@ -1745,8 +1758,15 @@ export default function MaintenanceReportEditPage({ session }: Props) {
         setSavedReportTitle(title);
         emitDataChanged();
       } else {
-        // Yksi avoin luonnos per laite: jos laitteella on jo luonnos, avataan se eikä luoda toista.
-        const existingDraftId = await findOpenDraftForEquipment(supabase, rowPayload.equipment_id as string | null);
+        // Yksi avoin luonnos per laite. Kausihuolto jatkaa vain saman kauden luonnosta,
+        // ei erillistä korjausta tai toisen kauden pöytäkirjaa.
+        const seasonMatch = readExplicitMaintenanceSeason({ data: dataPayload });
+        const existingDraftId = await findOpenDraftForEquipment(
+          supabase,
+          rowPayload.equipment_id as string | null,
+          null,
+          seasonMatch?.season && seasonMatch.year ? { season: seasonMatch.season, year: seasonMatch.year } : null,
+        );
         if (existingDraftId) {
           navigate(`/huoltoraportit/${existingDraftId}`, {
             replace: true,

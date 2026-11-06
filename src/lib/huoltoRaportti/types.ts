@@ -779,6 +779,13 @@ export type HuoltoReportData = {
   huoltoSuorittajaNimi: string;
   huoltoSuorittajaTUKES: string;
   huoltoPaivamaara: string;
+  /**
+   * Eksplisiittinen kausihuolto (kevat | syksy). Puuttuu vanhoista riveistä.
+   * Ei täytetä päivämäärästä eikä normalisointi kirjoita sitä jälkikäteen.
+   */
+  huoltokausi?: string;
+  /** Kausihuollon vuosi, kun käyttäjä on sen valinnut. */
+  huoltokausiVuosi?: number;
   huoltoReportDocumentKind: 'huolto' | 'kayttoonotto';
   /** Tuloste: piilota kylmäainepiirin varoitukset (vanha sovellus). */
   piilotaVaroitukset?: boolean;

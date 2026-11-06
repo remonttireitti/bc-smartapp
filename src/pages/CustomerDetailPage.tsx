@@ -54,6 +54,8 @@ import {
 import { buildEquipmentListPrintHtml } from '../lib/equipmentListPrintHtml';
 import { openPrintHtml } from '../lib/openPrintWindow';
 import { isPortalUser } from '../lib/portalWorkOrder';
+import { isMaintenanceReportPublished } from '../lib/maintenanceReportStatus';
+import CustomerMaintenanceOverview from '../components/CustomerMaintenanceOverview';
 import { getPortalCustomerId, getPortalSubscriberId, isPortalView } from '../lib/portalPreview';
 import { supabase } from '../lib/supabase';
 import { effectiveDeviceFields, loadEquipmentDeviceFields, type EquipmentDeviceFields } from '../lib/equipmentDeviceFields';
@@ -462,7 +464,7 @@ export default function CustomerDetailPage({ session }: Props) {
     setError(null);
     try {
       const branding = await loadPrintBranding(customer.owner_company_id);
-      const entries = buildMaintenanceHistoryForEquipment(eq, maintenanceRows, workRows, equipmentNotes, customer.name);
+      const entries = buildMaintenanceHistoryForEquipment(eq, maintenanceRowsForView, workRows, equipmentNotes, customer.name);
       const html = buildMaintenanceHistoryPrintHtml({
         customerName: customer.name,
         sections: [{ deviceLabel: equipmentLabel(eq), entries }],
@@ -554,7 +556,7 @@ export default function CustomerDetailPage({ session }: Props) {
     setError(null);
     try {
       const branding = await loadPrintBranding(customer.owner_company_id);
-      const sections = buildMaintenanceHistorySectionsForEquipmentList(list, maintenanceRows, workRows, equipmentNotes, customer.name);
+      const sections = buildMaintenanceHistorySectionsForEquipmentList(list, maintenanceRowsForView, workRows, equipmentNotes, customer.name);
       openPrintHtml(
         buildMaintenanceHistoryPrintHtml({
           customerName: customer.name,
@@ -661,13 +663,19 @@ export default function CustomerDetailPage({ session }: Props) {
     [equipment, decommissioned],
   );
 
+  const maintenanceRowsForView = useMemo(
+    () => (isPortalView(profile)
+      ? maintenanceRows.filter((row) => isMaintenanceReportPublished(row.status))
+      : maintenanceRows),
+    [maintenanceRows, profile],
+  );
   const latestMaintenanceByEquipment = useMemo(
-    () => mergeLatest(buildLatestMaintenanceByEquipment(equipment, maintenanceRows, equipmentNotes), linkedLast, 'service'),
-    [equipment, maintenanceRows, equipmentNotes, linkedLast],
+    () => mergeLatest(buildLatestMaintenanceByEquipment(equipment, maintenanceRowsForView, equipmentNotes), linkedLast, 'service'),
+    [equipment, maintenanceRowsForView, equipmentNotes, linkedLast],
   );
   const latestLeakByEquipment = useMemo(
-    () => mergeLatest(buildLatestLeakCheckByEquipment(maintenanceRows), linkedLast, 'leak'),
-    [maintenanceRows, linkedLast],
+    () => mergeLatest(buildLatestLeakCheckByEquipment(maintenanceRowsForView), linkedLast, 'leak'),
+    [maintenanceRowsForView, linkedLast],
   );
   const todayYmd = todayYmdLocal();
 
@@ -1238,10 +1246,25 @@ export default function CustomerDetailPage({ session }: Props) {
         onCancel={() => setDecommissionTarget(null)}
       />
 
+      <CustomerMaintenanceOverview
+        portal={portalView}
+        customerId={customer.id}
+        protocols={maintenanceRowsForView.map((row) => ({
+          id: row.id,
+          equipmentId: row.equipment_id,
+          status: row.status,
+          title: row.title,
+          data: row.data,
+          createdAt: row.created_at,
+        }))}
+        devices={activeEquipment}
+        huoltoAccess={huolto.access}
+        navTrail={equipmentNavTrail}
+      />
+
       {portalView && portalSubscriberId ? (
         ([
           ['work_report', 'Työraportit', 'work'],
-          ['maintenance_report', 'Huoltopöytäkirjat', 'maintenance'],
           ['quote_request', 'Tarjoukset', 'quote'],
         ] as const).map(([kind, label, visKind]) => {
           // Tilaajaportaali: kohteen raportit, avautuvat vain asiakastulosteina.

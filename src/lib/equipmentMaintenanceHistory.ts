@@ -31,6 +31,8 @@ export type MaintenanceHistoryEntry = {
 type MaintenanceReportRow = {
   id: string;
   equipment_id: string | null;
+  status?: string | null;
+  title?: string | null;
   data: HuoltoReportData;
   updated_at: string;
   completed_at: string | null;
@@ -184,7 +186,7 @@ export async function loadCustomerMaintenanceContext(
   const [maintenanceResult, workResult] = await Promise.all([
     supabase
       .from('maintenance_reports')
-      .select('id, equipment_id, data, updated_at, completed_at, created_at')
+      .select('id, equipment_id, status, title, data, updated_at, completed_at, created_at')
       .eq('customer_id', customerId),
     supabase
       .from('work_reports')

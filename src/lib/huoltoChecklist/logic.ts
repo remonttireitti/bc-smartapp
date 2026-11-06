@@ -54,6 +54,9 @@ export type ChecklistReportData = {
   signature?: string;
   signedAt?: string;
   huoltoWorkReportId?: string;
+  /** Eksplisiittinen kausihuolto. Ei päätellä päivämäärästä. */
+  huoltokausi?: string;
+  huoltokausiVuosi?: number;
   /** Esimerkkitieto (onboarding). */
   onboardingDemo?: boolean;
 };
@@ -158,7 +161,19 @@ export function normalizeChecklistReport(raw: unknown, category: ChecklistCatego
     signature: str(r.signature) || undefined,
     signedAt: str(r.signedAt) || undefined,
     huoltoWorkReportId: str(r.huoltoWorkReportId) || undefined,
+    ...preserveChecklistSeason(r),
   };
+}
+
+/** Säilytä tallennettu kausi sellaisenaan. Älä päättele äläkä normalisoi arvoa. */
+function preserveChecklistSeason(raw: Record<string, unknown>): Pick<ChecklistReportData, 'huoltokausi' | 'huoltokausiVuosi'> {
+  const out: Pick<ChecklistReportData, 'huoltokausi' | 'huoltokausiVuosi'> = {};
+  if (typeof raw.huoltokausi === 'string' && raw.huoltokausi.trim()) out.huoltokausi = raw.huoltokausi;
+  if (typeof raw.huoltokausiVuosi === 'number' && Number.isFinite(raw.huoltokausiVuosi)) out.huoltokausiVuosi = raw.huoltokausiVuosi;
+  else if (typeof raw.huoltokausiVuosi === 'string' && /^\d{4}$/.test(raw.huoltokausiVuosi.trim())) {
+    out.huoltokausiVuosi = Number(raw.huoltokausiVuosi.trim());
+  }
+  return out;
 }
 
 /** "12,5" → 12.5; tyhjä/virheellinen → null. */

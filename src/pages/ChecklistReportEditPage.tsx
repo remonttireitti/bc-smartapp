@@ -30,6 +30,7 @@ import { CIRCUIT_LIMITS, checklistTemplate, type ChecklistItem, type ChecklistSt
 import { huoltoPerformerDisplayName } from '../lib/huoltoRaportti/performerFromProfile';
 import { AddMaintenanceReportImages, deleteMaintenanceReportImage, MaintenanceReportImageThumb } from '../lib/maintenanceReportImages';
 import { isMaintenanceReportPublished } from '../lib/maintenanceReportStatus';
+import { maintenanceSeasonFromSearch } from '../lib/maintenanceSeasonOverview';
 import { maintenanceListTrail, withNavTrail } from '../lib/navigationTrail';
 import { isPortalUser } from '../lib/portalWorkOrder';
 import {
@@ -140,7 +141,7 @@ export default function ChecklistReportEditPage({ session, category: routeCatego
 
   // Olemassa olevan raportin lataus.
   useEffect(() => {
-    if (!id) return;
+    if (!id || profileLoading) return;
     let cancelled = false;
     void (async () => {
       setLoading(true);
@@ -166,6 +167,14 @@ export default function ChecklistReportEditPage({ session, category: routeCatego
         equipment_id: string | null;
         subscriber_id: string | null;
       };
+      if (portalMode) {
+        setLoading(false);
+        navigate(
+          isMaintenanceReportPublished(r.status) ? `/huoltoraportit/${r.id}/tuloste` : '/huoltoraportit',
+          { replace: true },
+        );
+        return;
+      }
       const cat = isChecklistCategory(r.data?.reportCategory) ? r.data.reportCategory : routeCategory ?? 'lvi';
       setData(normalizeChecklistReport(r.data, cat));
       setStatus(isMaintenanceReportPublished(r.status) ? 'submitted' : 'draft');
@@ -179,12 +188,11 @@ export default function ChecklistReportEditPage({ session, category: routeCatego
       });
       setReportId(r.id);
       setLoading(false);
-      if (portalMode) navigate(`/huoltoraportit/${r.id}/tuloste`, { replace: true });
     })();
     return () => {
       cancelled = true;
     };
-  }, [id, routeCategory, portalMode, navigate]);
+  }, [id, routeCategory, portalMode, navigate, profileLoading]);
 
   // Uusi: esitäyttö (suorittaja, asiakas/laite kyselystä).
   const prefilledRef = useRef(false);
@@ -196,6 +204,10 @@ export default function ChecklistReportEditPage({ session, category: routeCatego
     const eid = searchParams.get('equipmentId');
     if (cid) setCustomerId(cid);
     if (eid) setEquipmentId(eid);
+    const season = maintenanceSeasonFromSearch(searchParams);
+    if (season) {
+      setData((prev) => ({ ...prev, huoltokausi: season.season, huoltokausiVuosi: season.year }));
+    }
   }, [id, profileLoading, profile, session, searchParams]);
 
   // Asiakas- ja laitetiedot raportin dataan (lista ja tuloste).

@@ -135,6 +135,7 @@
     "test:urakka-zero-day-billing": "npx tsx scripts/test-urakka-zero-day-billing.mjs",
     "test:takuu-billing": "npx tsx scripts/test-takuu-billing.mjs",
     "test:refrigerant-partner-warehouse": "npx tsx scripts/test-refrigerant-partner-warehouse.mjs",
+    "test:maintenance-season-overview": "npx tsx scripts/test-maintenance-season-overview.ts",
     "gen:esittely": "npx tsx scripts/generate-esittely.mjs"
   },
   "dependencies": {

@@ -20,6 +20,9 @@ export default function SubscriberPortalVisibilityField({
   busy,
 }: Props) {
   const selected = SUBSCRIBER_PORTAL_VISIBILITY_OPTIONS.find((option) => option.value === value);
+  const hint = reportKind === 'maintenance'
+    ? 'Asiakasportaali näyttää huoltopöytäkirjan vasta kun se on valmis. Luonnos ei näy portaalissa, tulosteessa eikä PDF:ssä.'
+    : selected?.hint;
 
   return (
     <div className="subscriber-portal-visibility-field">
@@ -38,12 +41,9 @@ export default function SubscriberPortalVisibilityField({
         </select>
       </label>
       <p className="muted subscriber-portal-visibility-hint">
-        {selected?.hint}
+        {hint}
         {reportKind === 'quote' && value === 'as_in_progress' && (
           <> Tarjouksilla “työn alla” tarkoittaa luonnosnäkyvyyttä.</>
-        )}
-        {reportKind === 'maintenance' && value === 'as_in_progress' && (
-          <> Huoltoraporteilla “työn alla” tarkoittaa luonnosnäkyvyyttä.</>
         )}
       </p>
     </div>

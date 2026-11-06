@@ -26,7 +26,7 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   const [searchParams] = useSearchParams();
   const autoPrint = searchParams.get('print') === '1';
   const faultyKonvektoritOnly = searchParams.get('vialliset') === '1';
-  const { profile } = useProfile(session);
+  const { profile, loading: profileLoading } = useProfile(session);
   const [html, setHtml] = useState('');
   const [printTitle, setPrintTitle] = useState('');
   const [reportData, setReportData] = useState<HuoltoReportData | null>(null);
@@ -42,13 +42,14 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
   const [pdfState, setPdfState] = useState<'idle' | 'busy' | 'error'>('idle');
 
   useEffect(() => {
+    if (profileLoading) return;
     if (!id) {
       setError('Raportin tunniste puuttuu.');
       setLoading(false);
       return;
     }
     void loadReport(id);
-  }, [id, faultyKonvektoritOnly]);
+  }, [id, faultyKonvektoritOnly, profileLoading, portalReadOnly]);
 
   useEffect(() => {
     if (!printTitle) return undefined;
@@ -85,7 +86,11 @@ export default function MaintenanceReportPrintPage({ session }: Props) {
     autoPrintTriggeredRef.current = false;
 
     try {
-      const bundle = await loadMaintenanceReportPrintBundle(reportId, { faultyKonvektoritOnly, embedImages: false });
+      const bundle = await loadMaintenanceReportPrintBundle(reportId, {
+        faultyKonvektoritOnly,
+        embedImages: false,
+        portal: portalReadOnly,
+      });
       setReportData(bundle.data);
       setHtml(extractPrintableHtmlFragment(bundle.html));
       setPrintTitle(formatPrintSaveFileName(bundle.documentTitle));
