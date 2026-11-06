@@ -1,11 +1,11 @@
 import { isMaintenanceReportPublished } from './maintenanceReportStatus';
 
 /**
- * Kausihuolto ei ole oma sarake. maintenance_reports.data on vapaa JSON,
- * eikä kannassa ole kevät/syksy-kenttää. Kausi luetaan vain eksplisiittisestä
- * metatiedosta (kenttä tai ilmaus "Keväthuolto" / "Syyshuolto").
- * Huoltopäivä, luontiaika tai korjaus ei tee rivistä kausihuoltoa eikä
- * vanhoja rivejä kirjoiteta uudelleen.
+ * Kausi näytetään katselussa. Eksplisiittinen kausi ja vuosi voittavat.
+ * Ilman merkintää tavallinen huolto sijoitetaan huoltopäivän mukaan:
+ * tammi–kesäkuu kevät, heinä–joulukuu syksy. Korjaus ja käyttöönotto,
+ * jotka on tunnistettu omaksi lajikseen, jäävät muuhun huoltoon.
+ * Rivejä ei kirjoiteta uudelleen.
  */
 
 export type MaintenanceSeason = 'kevat' | 'syksy';
@@ -27,9 +27,9 @@ export const SEASON_DEVICE_STATUS_LABELS: Record<SeasonDeviceStatus, string> = {
 
 export type ExplicitMaintenanceSeason = {
   season: MaintenanceSeason;
-  /** null = kautta ei ole sidottu vuoteen. Kuukaudesta ei arvata. */
+  /** null = kautta ei ole sidottu vuoteen. */
   year: number | null;
-  source: 'field' | 'label';
+  source: 'field' | 'label' | 'date';
 };
 
 export type MaintenanceProtocolRef = {
@@ -165,10 +165,7 @@ function serviceDateFromData(data: Record<string, unknown> | null, fallback?: st
   return null;
 }
 
-/**
- * Eksplisiittinen kausi. Palauttaa null, jos rivissä ei ole kausikenttää eikä
- * Keväthuolto/Syyshuolto-ilmausta. Päivämäärää ei käytetä kauden päättelyyn.
- */
+/** Eksplisiittinen kausimerkintä. Huoltopäivä ei yksinään ole merkintä. */
 export function readExplicitMaintenanceSeason(input: {
   data?: unknown;
   title?: string | null;
@@ -220,6 +217,56 @@ export function readExplicitMaintenanceSeason(input: {
   return picked;
 }
 
+const IDENTIFIED_NON_SEASONAL_LABEL = /^(?:korjaus|kayttoonotto)(?:\s*poytakirja)?$/i;
+
+function labelIsIdentifiedRepairOrCommissioning(value: unknown): boolean {
+  const text = fold(String(value ?? ''));
+  return text.length > 0 && IDENTIFIED_NON_SEASONAL_LABEL.test(text);
+}
+
+/** Korjaus tai käyttöönotto, joka on merkitty omaksi asiakirjakseen. Huomiot eivät riitä. */
+export function isIdentifiedRepairOrCommissioning(input: {
+  data?: unknown;
+  title?: string | null;
+}): boolean {
+  const data = asRecord(input.data);
+  if (data?.huoltoReportDocumentKind === 'kayttoonotto') return true;
+  const labels = [input.title, ...LABEL_FIELD_KEYS.map((key) => (data ? data[key] : null))];
+  return labels.some((label) => labelIsIdentifiedRepairOrCommissioning(label));
+}
+
+/** Tammi–kesäkuu kevät, heinä–joulukuu syksy. Rajapäivät: 30.6. kevät, 1.7. syksy. */
+export function seasonFromServiceDate(ymd: string | null | undefined): { season: MaintenanceSeason; year: number } | null {
+  const date = String(ymd ?? '').trim();
+  const match = date.match(/^(\d{4})-(\d{2})-\d{2}/);
+  if (!match) return null;
+  const year = parseMaintenanceSeasonYear(match[1]);
+  const month = Number(match[2]);
+  if (!year || month < 1 || month > 12) return null;
+  return { season: month <= 6 ? 'kevat' : 'syksy', year };
+}
+
+/**
+ * Näytettävä kausi. Eksplisiittinen merkintä voittaa huoltopäivän.
+ * Tavallinen huolto ilman merkintää käyttää huoltopäivää. Korjaus ja
+ * käyttöönotto ilman merkintää eivät saa kautta. Ei muuta lähderiviä.
+ */
+export function readDisplayMaintenanceSeason(input: {
+  data?: unknown;
+  title?: string | null;
+  serviceDate?: string | null;
+  createdAt?: string | null;
+}): ExplicitMaintenanceSeason | null {
+  const explicit = readExplicitMaintenanceSeason(input);
+  if (explicit) return explicit;
+  if (isIdentifiedRepairOrCommissioning(input)) return null;
+  const data = asRecord(input.data);
+  const ymd = serviceDateFromData(data, input.serviceDate);
+  const fromDate = seasonFromServiceDate(ymd);
+  if (!fromDate) return null;
+  return { season: fromDate.season, year: fromDate.year, source: 'date' };
+}
+
 export function maintenanceSeasonFromSearch(params: { get(name: string): string | null }): {
   season: MaintenanceSeason;
   year: number;
@@ -245,11 +292,10 @@ export function toMaintenanceProtocolView(row: MaintenanceProtocolRef): Maintena
     published: isMaintenanceReportPublished(row.status),
     title,
     dateYmd,
-    season: readExplicitMaintenanceSeason({
+    season: readDisplayMaintenanceSeason({
       data: row.data,
       title: row.title,
-      serviceDate: dateYmd,
-      createdAt: row.createdAt,
+      serviceDate: row.serviceDate,
     }),
   };
 }
@@ -349,8 +395,13 @@ export function seasonDeviceRows(input: {
     .sort((a, b) => a.label.localeCompare(b.label, 'fi'));
 }
 
-/** Avoin luonnos kelpaa kausihuollon jatkoksi vain, jos siinä on sama eksplisiittinen kausi ja vuosi. */
-export function draftMatchesMaintenanceSeason(data: unknown, season: MaintenanceSeason, year: number): boolean {
-  const explicit = readExplicitMaintenanceSeason({ data });
-  return explicit?.season === season && explicit?.year === year;
+/** Avoin luonnos kelpaa saman kauden jatkoksi. Korjaus ja käyttöönotto eivät kelpaa. */
+export function draftMatchesMaintenanceSeason(
+  data: unknown,
+  season: MaintenanceSeason,
+  year: number,
+  title?: string | null,
+): boolean {
+  const display = readDisplayMaintenanceSeason({ data, title });
+  return display?.season === season && display?.year === year;
 }
