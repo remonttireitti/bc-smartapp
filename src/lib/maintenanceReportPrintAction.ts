@@ -12,6 +12,7 @@ import { embedPrintThumbnail, shrinkUrlMapForPrint } from './printImageEmbed';
 import { ensurePrintHtmlDocumentTitle } from './printDocumentShell';
 import { supabase } from './supabase';
 import { isChecklistCategory } from './huoltoCategories';
+import { maintenanceProtocolVisibleToPortal } from './maintenanceSeasonOverview';
 
 export function buildMaintenanceReportPrintDocument(fragment: string, documentTitle: string): string {
   return ensurePrintHtmlDocumentTitle(fragment, documentTitle);
@@ -42,6 +43,7 @@ const PRINT_PAGE_IMAGE_WIDTH = 960;
 
 type MaintenanceReportRow = {
   data: HuoltoReportData;
+  status?: string | null;
   branding_company_id: string | null;
   owner_company_id: string;
   customer_id: string | null;
@@ -50,7 +52,7 @@ type MaintenanceReportRow = {
 async function fetchMaintenanceReportRow(reportId: string): Promise<MaintenanceReportRow> {
   const { data, error: loadError } = await supabase
     .from('maintenance_reports')
-    .select('id, data, branding_company_id, owner_company_id, customer_id')
+    .select('id, status, data, branding_company_id, owner_company_id, customer_id')
     .eq('id', reportId)
     .single();
   if (loadError || !data) {
@@ -160,15 +162,24 @@ function buildMaintenancePrintBundle(
 
 export async function loadMaintenanceReportPrintBundle(
   reportId: string,
-  options?: { dataOverride?: HuoltoReportData; faultyKonvektoritOnly?: boolean; embedImages?: boolean },
+  options?: { dataOverride?: HuoltoReportData; faultyKonvektoritOnly?: boolean; embedImages?: boolean; portal?: boolean },
 ) {
   let row: MaintenanceReportRow | undefined;
+  if (options?.portal && options.dataOverride) {
+    throw new Error('Pöytäkirjaa ei löytynyt.');
+  }
   if (!options?.dataOverride) {
     row = await fetchMaintenanceReportRow(reportId);
+    if (options?.portal && !maintenanceProtocolVisibleToPortal(row.status)) {
+      throw new Error('Pöytäkirjaa ei löytynyt.');
+    }
     const category = (row.data as { reportCategory?: string | null } | null)?.reportCategory ?? null;
     if (isChecklistCategory(category)) {
       const { loadChecklistPrintBundle } = await import('./huoltoChecklist/printBundle');
-      const bundle = await loadChecklistPrintBundle(reportId, category, options?.embedImages !== false);
+      const bundle = await loadChecklistPrintBundle(reportId, category, options?.embedImages !== false, {
+        portal: options?.portal,
+        status: row.status,
+      });
       return {
         data: bundle.data as unknown as HuoltoReportData,
         fragment: bundle.html,

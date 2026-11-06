@@ -6,6 +6,7 @@ import { ensurePrintHtmlDocumentTitle } from '../printDocumentShell';
 import { formatCustomerAddressParts } from '../customers';
 import { supabase } from '../supabase';
 import type { ChecklistCategoryKey } from '../huoltoCategories';
+import { maintenanceProtocolVisibleToPortal } from '../maintenanceSeasonOverview';
 import { normalizeChecklistReport, type ChecklistReportData } from './logic';
 import { buildChecklistPrintTitle, generateChecklistPrintHtml } from './printHtml';
 
@@ -17,14 +18,25 @@ type Row = {
   equipment: { name: string; tag: string | null; model: string | null; serial_number: string | null; location: string | null } | null;
 };
 
-export async function loadChecklistPrintBundle(reportId: string, category: ChecklistCategoryKey, embedImages = true) {
+export async function loadChecklistPrintBundle(
+  reportId: string,
+  category: ChecklistCategoryKey,
+  embedImages = true,
+  options?: { portal?: boolean; status?: string | null },
+) {
+  if (options?.portal && !maintenanceProtocolVisibleToPortal(options.status)) {
+    throw new Error('Pöytäkirjaa ei löytynyt.');
+  }
   const { data: rowData, error } = await supabase
     .from('maintenance_reports')
-    .select('data, branding_company_id, owner_company_id, customers(name, address, postal_code, city), equipment(name, tag, model, serial_number, location)')
+    .select('status, data, branding_company_id, owner_company_id, customers(name, address, postal_code, city), equipment(name, tag, model, serial_number, location)')
     .eq('id', reportId)
     .single();
   if (error || !rowData) throw new Error(error?.message ?? 'Raporttia ei löytynyt.');
-  const row = rowData as unknown as Row;
+  const row = rowData as unknown as Row & { status?: string | null };
+  if (options?.portal && !maintenanceProtocolVisibleToPortal(row.status ?? options.status)) {
+    throw new Error('Pöytäkirjaa ei löytynyt.');
+  }
   const data: ChecklistReportData = normalizeChecklistReport(row.data, category);
 
   const logoTask = (async () => {

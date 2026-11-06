@@ -75,7 +75,7 @@ async function resolveViewerCompanyId(): Promise<string | null> {
 export async function buildPortalDocumentPdf(kind: PortalDocKind, id: string, viewerCompanyId?: string | null): Promise<File> {
   if (kind === 'maintenance_report') {
     const { loadMaintenanceReportPrintBundle } = await import('./maintenanceReportPrintAction');
-    const bundle = await loadMaintenanceReportPrintBundle(id, { embedImages: false });
+    const bundle = await loadMaintenanceReportPrintBundle(id, { embedImages: false, portal: true });
     const name = formatPrintSaveFileName(bundle.documentTitle);
     return renderHtmlHostToPdf(extractPrintableHtmlFragment(bundle.html), 'maintenance-print-host', name);
   }

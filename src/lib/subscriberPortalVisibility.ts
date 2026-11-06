@@ -57,7 +57,8 @@ export function subscriberPortalReportVisible(args: {
 
   if (args.kind === 'work' && isWorkReportReady(status)) return true;
   if (args.kind === 'quote' && isQuoteReady(status)) return true;
-  if (args.kind === 'maintenance' && isMaintenanceReportPublished(status)) return true;
+  // Huoltopöytäkirja näkyy asiakasportaalissa vain valmiina. Luonnosnäkyvyys ei avaa sitä.
+  if (args.kind === 'maintenance') return isMaintenanceReportPublished(status);
 
   if (visibility === 'as_draft') {
     return statusLower === 'draft';
